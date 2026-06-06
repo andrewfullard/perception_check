@@ -1,12 +1,13 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Callable, Dict, List, Tuple
+from typing import Callable, Dict, List, TypeVar, Tuple
 import re
 import xml.etree.ElementTree as ET
 
 
 _WHITESPACE_PATTERN = re.compile(r"\s+")
+DocumentT = TypeVar("DocumentT")
 
 
 def normalize_expression(text: str) -> str:
@@ -124,3 +125,19 @@ def parse_single_named_entry_text_file(
 
     summary_text = entry_text_extractor(root)
     return xml_path, {f"{name_prefix}{entry_name_text}": summary_text}
+
+
+def parse_documents_folder(
+    folder: str | Path,
+    parse_document: Callable[[Path], DocumentT],
+    pattern: str = "*.xml",
+) -> List[DocumentT]:
+    """Parse all matching XML files in one folder, non-recursively."""
+    folder_path = Path(folder)
+    documents: List[DocumentT] = []
+
+    for xml_path in sorted(folder_path.glob(pattern)):
+        if xml_path.is_file():
+            documents.append(parse_document(xml_path))
+
+    return documents

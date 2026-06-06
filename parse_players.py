@@ -1,3 +1,6 @@
+from __future__ import annotations
+
+from pathlib import Path
 from typing import List
 
 from data_models import (
@@ -8,12 +11,10 @@ from data_models import (
 )
 from xml_common import (
     extract_structured_entry_text_with_paths,
+    parse_documents_folder,
     parse_named_entries_text_file,
     parse_single_named_entry_text_file,
 )
-
-
-from pathlib import Path
 
 
 def parse_players_file(xml_file: str | Path) -> AIPlayerDocument:
@@ -65,25 +66,11 @@ def parse_players_folder(
     folder: str | Path, pattern: str = "*.xml"
 ) -> List[AIPlayerDocument]:
     """Parse all Players XML files in one folder (non-recursive)."""
-    folder_path = Path(folder)
-    documents: List[AIPlayerDocument] = []
-
-    for xml_path in sorted(folder_path.glob(pattern)):
-        if xml_path.is_file():
-            documents.append(parse_players_file(xml_path))
-
-    return documents
+    return parse_documents_folder(folder, parse_players_file, pattern=pattern)
 
 
 def parse_templates_folder(
     folder: str | Path, pattern: str = "*.xml"
 ) -> List[AITemplateDocument]:
     """Parse all Templates XML files in one folder (non-recursive)."""
-    folder_path = Path(folder)
-    documents: List[AITemplateDocument] = []
-
-    for xml_path in sorted(folder_path.glob(pattern)):
-        if xml_path.is_file():
-            documents.append(parse_templates_file(xml_path))
-
-    return documents
+    return parse_documents_folder(folder, parse_templates_file, pattern=pattern)

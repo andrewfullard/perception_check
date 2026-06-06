@@ -10,6 +10,7 @@ from data_models import (
     GoalFunctionEntry,
 )
 from xml_common import (
+    parse_documents_folder,
     parse_named_entries_text_file,
 )
 
@@ -60,25 +61,11 @@ def parse_goal_functions_folder(
     folder: str | Path, pattern: str = "*.xml"
 ) -> List[GoalFunctionDocument]:
     """Parse all GoalFunctions XML files in one folder (non-recursive)."""
-    folder_path = Path(folder)
-    documents: List[GoalFunctionDocument] = []
-
-    for xml_path in sorted(folder_path.glob(pattern)):
-        if xml_path.is_file():
-            documents.append(parse_goal_functions_file(xml_path))
-
-    return documents
+    return parse_documents_folder(folder, parse_goal_functions_file, pattern=pattern)
 
 
 def parse_goals_folder(
     folder: str | Path, pattern: str = "*.xml"
 ) -> List[GoalDocument]:
     """Parse all Goals XML files in one folder (non-recursive)."""
-    folder_path = Path(folder)
-    documents: List[GoalDocument] = []
-
-    for xml_path in sorted(folder_path.glob(pattern)):
-        if xml_path.is_file():
-            documents.append(parse_goals_file(xml_path))
-
-    return documents
+    return parse_documents_folder(folder, parse_goals_file, pattern=pattern)

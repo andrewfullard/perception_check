@@ -116,84 +116,16 @@ class PerceptualEquationsView:
         left_tabs.add(players_tab, text="AI Players")
         left_tabs.add(templates_tab, text="AI Templates")
 
-        ttk.Label(entries_tab, text="Search").pack(anchor=tk.W)
-        ttk.Entry(entries_tab, textvariable=self.search_var).pack(
-            fill=tk.X, pady=(4, 8)
+        self.names_listbox = self._build_search_list_tab(entries_tab, self.search_var)
+        self.goals_listbox = self._build_search_list_tab(
+            goals_tab, self.goals_search_var
         )
-
-        entries_list_host = ttk.Frame(entries_tab)
-        entries_list_host.pack(fill=tk.BOTH, expand=True)
-
-        self.names_listbox = tk.Listbox(entries_list_host, exportselection=False)
-        entries_scrollbar = ttk.Scrollbar(
-            entries_list_host,
-            orient=tk.VERTICAL,
-            command=self.names_listbox.yview,
+        self.players_listbox = self._build_search_list_tab(
+            players_tab, self.players_search_var
         )
-        self.names_listbox.configure(yscrollcommand=entries_scrollbar.set)
-
-        self.names_listbox.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
-        entries_scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
-
-        ttk.Label(goals_tab, text="Search").pack(anchor=tk.W)
-        ttk.Entry(goals_tab, textvariable=self.goals_search_var).pack(
-            fill=tk.X, pady=(4, 8)
+        self.templates_listbox = self._build_search_list_tab(
+            templates_tab, self.templates_search_var
         )
-
-        goals_list_host = ttk.Frame(goals_tab)
-        goals_list_host.pack(fill=tk.BOTH, expand=True)
-
-        self.goals_listbox = tk.Listbox(goals_list_host, exportselection=False)
-        goals_scrollbar = ttk.Scrollbar(
-            goals_list_host,
-            orient=tk.VERTICAL,
-            command=self.goals_listbox.yview,
-        )
-        self.goals_listbox.configure(yscrollcommand=goals_scrollbar.set)
-
-        self.goals_listbox.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
-        goals_scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
-
-        ttk.Label(players_tab, text="Search").pack(anchor=tk.W)
-        ttk.Entry(players_tab, textvariable=self.players_search_var).pack(
-            fill=tk.X, pady=(4, 8)
-        )
-
-        players_list_host = ttk.Frame(players_tab)
-        players_list_host.pack(fill=tk.BOTH, expand=True)
-
-        self.players_listbox = tk.Listbox(players_list_host, exportselection=False)
-        players_scrollbar = ttk.Scrollbar(
-            players_list_host,
-            orient=tk.VERTICAL,
-            command=self.players_listbox.yview,
-        )
-        self.players_listbox.configure(yscrollcommand=players_scrollbar.set)
-
-        self.players_listbox.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
-        players_scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
-
-        ttk.Label(templates_tab, text="Search").pack(anchor=tk.W)
-        ttk.Entry(templates_tab, textvariable=self.templates_search_var).pack(
-            fill=tk.X, pady=(4, 8)
-        )
-
-        templates_list_host = ttk.Frame(templates_tab)
-        templates_list_host.pack(fill=tk.BOTH, expand=True)
-
-        self.templates_listbox = tk.Listbox(
-            templates_list_host,
-            exportselection=False,
-        )
-        templates_scrollbar = ttk.Scrollbar(
-            templates_list_host,
-            orient=tk.VERTICAL,
-            command=self.templates_listbox.yview,
-        )
-        self.templates_listbox.configure(yscrollcommand=templates_scrollbar.set)
-
-        self.templates_listbox.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
-        templates_scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
 
         detail_header = ttk.Frame(right)
         detail_header.pack(fill=tk.X)
@@ -255,6 +187,30 @@ class PerceptualEquationsView:
         )
         self.expression_canvas.bind("<Configure>", self._on_expression_canvas_resize)
 
+    def _build_search_list_tab(
+        self,
+        parent: ttk.Frame,
+        search_var: tk.StringVar,
+    ) -> tk.Listbox:
+        """Create a search field plus scrollable listbox for a notebook tab."""
+        ttk.Label(parent, text="Search").pack(anchor=tk.W)
+        ttk.Entry(parent, textvariable=search_var).pack(fill=tk.X, pady=(4, 8))
+
+        list_host = ttk.Frame(parent)
+        list_host.pack(fill=tk.BOTH, expand=True)
+
+        listbox = tk.Listbox(list_host, exportselection=False)
+        scrollbar = ttk.Scrollbar(
+            list_host,
+            orient=tk.VERTICAL,
+            command=listbox.yview,
+        )
+        listbox.configure(yscrollcommand=scrollbar.set)
+
+        listbox.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+        return listbox
+
     def bind_handlers(
         self,
         on_load_stack: Callable[[], None],
@@ -309,21 +265,21 @@ class PerceptualEquationsView:
 
     def set_goal_names(self, goal_names: list[str]) -> None:
         """Render loaded AI goal names in the goals tab."""
-        self.goals_listbox.delete(0, tk.END)
-        for name in goal_names:
-            self.goals_listbox.insert(tk.END, name)
+        self._set_listbox_items(self.goals_listbox, goal_names)
 
     def set_player_names(self, player_names: list[str]) -> None:
         """Render loaded AI player names in the players tab."""
-        self.players_listbox.delete(0, tk.END)
-        for name in player_names:
-            self.players_listbox.insert(tk.END, name)
+        self._set_listbox_items(self.players_listbox, player_names)
 
     def set_template_names(self, template_names: list[str]) -> None:
         """Render loaded AI template names in the templates tab."""
-        self.templates_listbox.delete(0, tk.END)
-        for name in template_names:
-            self.templates_listbox.insert(tk.END, name)
+        self._set_listbox_items(self.templates_listbox, template_names)
+
+    def _set_listbox_items(self, listbox: tk.Listbox, items: list[str]) -> None:
+        """Replace all items in a listbox."""
+        listbox.delete(0, tk.END)
+        for item in items:
+            listbox.insert(tk.END, item)
 
     def set_evaluation_controls_visible(self, visible: bool) -> None:
         """Show or hide evaluation controls for the current entry type."""

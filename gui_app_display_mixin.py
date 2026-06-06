@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import tkinter as tk
 from tkinter import messagebox
+from typing import Callable
 
 from perceptual_equations_parser import PerceptualEquation
 from gui_app_text_utils import (
@@ -23,44 +24,24 @@ class PerceptualEquationsAppDisplayMixin:
             filtered_template_names: list[str] = []
         else:
             all_names = sorted(self.index.effective_equations.keys(), key=str.lower)
-            goal_names = [
-                name for name in all_names if self._entry_type(name) == "goal"
-            ]
-            goal_term = self.view.goals_search_var.get().strip().lower()
-            if goal_term:
-                filtered_goal_names = [
-                    name
-                    for name in goal_names
-                    if goal_term in self._goal_display_name(name).lower()
-                ]
-            else:
-                filtered_goal_names = goal_names
-
-            player_names = [
-                name for name in all_names if self._entry_type(name) == "player"
-            ]
-            player_term = self.view.players_search_var.get().strip().lower()
-            if player_term:
-                filtered_player_names = [
-                    name
-                    for name in player_names
-                    if player_term in self._player_display_name(name).lower()
-                ]
-            else:
-                filtered_player_names = player_names
-
-            template_names = [
-                name for name in all_names if self._entry_type(name) == "template"
-            ]
-            template_term = self.view.templates_search_var.get().strip().lower()
-            if template_term:
-                filtered_template_names = [
-                    name
-                    for name in template_names
-                    if template_term in self._template_display_name(name).lower()
-                ]
-            else:
-                filtered_template_names = template_names
+            filtered_goal_names = self._filter_hidden_tab_names(
+                all_names,
+                entry_type="goal",
+                search_text=self.view.goals_search_var.get(),
+                display_name_for=self._goal_display_name,
+            )
+            filtered_player_names = self._filter_hidden_tab_names(
+                all_names,
+                entry_type="player",
+                search_text=self.view.players_search_var.get(),
+                display_name_for=self._player_display_name,
+            )
+            filtered_template_names = self._filter_hidden_tab_names(
+                all_names,
+                entry_type="template",
+                search_text=self.view.templates_search_var.get(),
+                display_name_for=self._template_display_name,
+            )
 
             names = [name for name in all_names if self._entry_type(name) == "equation"]
             term = self.view.search_var.get().strip().lower()
@@ -72,37 +53,28 @@ class PerceptualEquationsAppDisplayMixin:
         for name in self.filtered_names:
             self.view.names_listbox.insert(tk.END, name)
 
-        self.goal_display_to_entry = {}
-        goal_display_names: list[str] = []
-        for goal_name in filtered_goal_names:
-            goal_display_name = self._goal_display_name(goal_name)
-            if goal_display_name in self.goal_display_to_entry:
-                goal_display_name = goal_name
-            self.goal_display_to_entry[goal_display_name] = goal_name
-            goal_display_names.append(goal_display_name)
-
+        goal_display_names, self.goal_display_to_entry = self._build_display_name_map(
+            filtered_goal_names,
+            self._goal_display_name,
+        )
         self.view.set_goal_names(goal_display_names)
 
-        self.player_display_to_entry = {}
-        player_display_names: list[str] = []
-        for player_name in filtered_player_names:
-            player_display_name = self._player_display_name(player_name)
-            if player_display_name in self.player_display_to_entry:
-                player_display_name = player_name
-            self.player_display_to_entry[player_display_name] = player_name
-            player_display_names.append(player_display_name)
-
+        (
+            player_display_names,
+            self.player_display_to_entry,
+        ) = self._build_display_name_map(
+            filtered_player_names,
+            self._player_display_name,
+        )
         self.view.set_player_names(player_display_names)
 
-        self.template_display_to_entry = {}
-        template_display_names: list[str] = []
-        for template_name in filtered_template_names:
-            template_display_name = self._template_display_name(template_name)
-            if template_display_name in self.template_display_to_entry:
-                template_display_name = template_name
-            self.template_display_to_entry[template_display_name] = template_name
-            template_display_names.append(template_display_name)
-
+        (
+            template_display_names,
+            self.template_display_to_entry,
+        ) = self._build_display_name_map(
+            filtered_template_names,
+            self._template_display_name,
+        )
         self.view.set_template_names(template_display_names)
 
         if self.filtered_names:
@@ -110,6 +82,38 @@ class PerceptualEquationsAppDisplayMixin:
             self.view.names_listbox.event_generate("<<ListboxSelect>>")
         else:
             self._display_equation(None)
+
+    def _filter_hidden_tab_names(
+        self,
+        all_names: list[str],
+        entry_type: str,
+        search_text: str,
+        display_name_for: Callable[[str], str],
+    ) -> list[str]:
+        """Return hidden-tab entries of one type matching display-name search."""
+        names = [name for name in all_names if self._entry_type(name) == entry_type]
+        term = search_text.strip().lower()
+        if not term:
+            return names
+        return [name for name in names if term in display_name_for(name).lower()]
+
+    def _build_display_name_map(
+        self,
+        entry_names: list[str],
+        display_name_for: Callable[[str], str],
+    ) -> tuple[list[str], dict[str, str]]:
+        """Build listbox labels plus a collision-safe label->entry lookup."""
+        display_to_entry: dict[str, str] = {}
+        display_names: list[str] = []
+
+        for entry_name in entry_names:
+            display_name = display_name_for(entry_name)
+            if display_name in display_to_entry:
+                display_name = entry_name
+            display_to_entry[display_name] = entry_name
+            display_names.append(display_name)
+
+        return display_names, display_to_entry
 
     def _on_goal_selection_changed(self, _event: tk.Event) -> None:
         """Jump to selected Goal::* entry from the AI goals tab."""
