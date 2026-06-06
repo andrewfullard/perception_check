@@ -14,6 +14,8 @@ def _app_without_tk() -> PerceptualEquationsApp:
     app = PerceptualEquationsApp.__new__(PerceptualEquationsApp)
     app.goal_to_equations = {}
     app.equation_to_goals = {}
+    app.player_to_templates = {}
+    app.template_to_players = {}
     app.goal_function_links = {}
     app.index = None
     app.range_analyzer = None
@@ -33,12 +35,19 @@ def _write_equations_xml(path: Path, equations: dict[str, str]) -> None:
     path.write_text("\n".join(lines), encoding="utf-8")
 
 
-def _write_player_xml(path: Path, name: str) -> None:
+def _write_player_xml(
+    path: Path,
+    name: str,
+    galactic_template: str = "Basic_Empire_Default",
+) -> None:
     path.write_text(
         (
             '<?xml version="1.0"?>\n'
             "<AIPlayerType>\n"
             f"  <Name>{name}</Name>\n"
+            "  <Templates>\n"
+            f"    <Galactic>{galactic_template}</Galactic>\n"
+            "  </Templates>\n"
             "</AIPlayerType>\n"
         ),
         encoding="utf-8",
@@ -112,6 +121,73 @@ def test_build_related_links_for_goal_include_equation_ranges() -> None:
     assert links == [
         ("Equation: Eq_A (min 0, max 3)", "Eq_A"),
         ("Equation: Eq_B (min 1, max 5)", "Eq_B"),
+    ]
+
+
+def test_extract_player_template_links_reads_templates_fields() -> None:
+    app = _app_without_tk()
+    entry = SimpleNamespace(
+        normalized_expression=(
+            "Name=BasicEmpire\n"
+            "Templates/Space=Generic_Space\n"
+            "Templates/Land=Generic_Land\n"
+            "Templates/Galactic=Generic_AI_Default"
+        )
+    )
+
+    links = app._extract_player_template_links(entry)
+
+    assert links == [
+        "Template::Generic_Space",
+        "Template::Generic_Land",
+        "Template::Generic_AI_Default",
+    ]
+
+
+def test_extract_player_template_links_splits_multi_template_field_values() -> None:
+    app = _app_without_tk()
+    entry = SimpleNamespace(
+        normalized_expression=(
+            "Name=IsolationistAI\n"
+            "Templates/Galactic=Generic_AI_Isolationist Generic_AI_Isolationist_Attacks"
+        )
+    )
+
+    links = app._extract_player_template_links(entry)
+
+    assert links == [
+        "Template::Generic_AI_Isolationist",
+        "Template::Generic_AI_Isolationist_Attacks",
+    ]
+
+
+def test_build_related_links_for_player_include_templates() -> None:
+    app = _app_without_tk()
+    app.entry_types = {"Player::BasicEmpire": "player"}
+    app.player_to_templates = {
+        "Player::BasicEmpire": ["Template::Generic_AI_Default"],
+    }
+    app.index = SimpleNamespace(get=lambda name: object() if name else None)
+
+    links = app._build_related_links("Player::BasicEmpire")
+
+    assert links == [
+        ("Template: Generic_AI_Default", "Template::Generic_AI_Default"),
+    ]
+
+
+def test_build_related_links_for_template_include_players() -> None:
+    app = _app_without_tk()
+    app.entry_types = {"Template::Generic_AI_Default": "template"}
+    app.template_to_players = {
+        "Template::Generic_AI_Default": ["Player::BasicEmpire"],
+    }
+    app.index = SimpleNamespace(get=lambda name: object() if name else None)
+
+    links = app._build_related_links("Template::Generic_AI_Default")
+
+    assert links == [
+        ("Player: BasicEmpire", "Player::BasicEmpire"),
     ]
 
 
@@ -528,3 +604,9 @@ def test_merge_non_equation_data_reads_players_templates_with_stack_order(
     assert app.index.layer_for("Template::Basic_Empire_Default") == "FotR"
     assert app.entry_types["Player::BasicEmpire"] == "player"
     assert app.entry_types["Template::Basic_Empire_Default"] == "template"
+    assert app.player_to_templates["Player::BasicEmpire"] == [
+        "Template::Basic_Empire_Default"
+    ]
+    assert app.template_to_players["Template::Basic_Empire_Default"] == [
+        "Player::BasicEmpire"
+    ]

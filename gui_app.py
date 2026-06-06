@@ -50,6 +50,8 @@ class PerceptualEquationsApp:
         self.range_analyzer: PerceptualEquationRangeAnalyzer | None = None
         self.goal_to_equations: dict[str, list[str]] = {}
         self.equation_to_goals: dict[str, list[str]] = {}
+        self.player_to_templates: dict[str, list[str]] = {}
+        self.template_to_players: dict[str, list[str]] = {}
         self.goal_function_links: dict[str, tuple[str, str]] = {}
         self.entry_types: dict[str, str] = {}
         self.goal_display_to_entry: dict[str, str] = {}
@@ -124,6 +126,8 @@ class PerceptualEquationsApp:
             self.index = self.parser.build_index_from_folders(layer_folders)
             self.goal_to_equations = {}
             self.equation_to_goals = {}
+            self.player_to_templates = {}
+            self.template_to_players = {}
             self.goal_function_links = {}
             self.entry_types = {
                 name: "equation" for name in self.index.effective_equations.keys()
@@ -250,6 +254,17 @@ class PerceptualEquationsApp:
 
         for document in documents:
             for entry in document:
+                for template_name in self._extract_player_template_links(entry):
+                    self._append_unique(
+                        self.player_to_templates,
+                        entry.name,
+                        template_name,
+                    )
+                    self._append_unique(
+                        self.template_to_players,
+                        template_name,
+                        entry.name,
+                    )
                 self._merge_non_equation_entry(layer_name, entry)
 
     def _merge_template_documents(
@@ -628,12 +643,67 @@ class PerceptualEquationsApp:
             )
             return links
 
+        if entry_type == "player":
+            for template_name in self.player_to_templates.get(entry_name, []):
+                if self.index is not None and self.index.get(template_name) is None:
+                    continue
+                links.append(
+                    (
+                        f"Template: {self._template_display_name(template_name)}",
+                        template_name,
+                    )
+                )
+            return links
+
+        if entry_type == "template":
+            for player_name in self.template_to_players.get(entry_name, []):
+                if self.index is not None and self.index.get(player_name) is None:
+                    continue
+                links.append(
+                    (
+                        f"Player: {self._player_display_name(player_name)}",
+                        player_name,
+                    )
+                )
+            return links
+
         for goal_name in self.equation_to_goals.get(entry_name, []):
             if self.index is not None and self.index.get(goal_name) is None:
                 continue
             links.append((f"Goal: {self._goal_display_name(goal_name)}", goal_name))
 
         return links
+
+    def _extract_player_template_links(self, entry: AIPlayerEntry) -> list[str]:
+        """Extract Template::* references from one Player::* entry text."""
+        fields = self._parse_structured_fields(entry.normalized_expression)
+        templates: list[str] = []
+
+        for field_key, field_value in fields.items():
+            if not field_key.startswith("templates/"):
+                continue
+            for template_ref in re.split(r"[\s,]+", field_value.strip()):
+                if not template_ref:
+                    continue
+                normalized_template = self._normalize_template_name(template_ref)
+                if normalized_template is not None:
+                    templates.append(normalized_template)
+
+        return templates
+
+    def _normalize_template_name(self, template_text: str | None) -> str | None:
+        """Convert a template reference into canonical Template::* form."""
+        if template_text is None:
+            return None
+
+        normalized = template_text.strip()
+        if not normalized:
+            return None
+
+        if normalized.startswith("Template::"):
+            return normalized
+
+        return f"Template::{normalized}"
 
     def _extract_goal_function_link(
         self, entry: GoalFunctionEntry
