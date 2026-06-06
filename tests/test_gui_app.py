@@ -477,6 +477,23 @@ def test_goal_display_name_strips_goal_prefix() -> None:
     assert app._goal_display_name("NoPrefix") == "NoPrefix"
 
 
+def test_player_display_name_strips_player_prefix() -> None:
+    app = _app_without_tk()
+
+    assert app._player_display_name("Player::BasicEmpire") == "BasicEmpire"
+    assert app._player_display_name("NoPrefix") == "NoPrefix"
+
+
+def test_template_display_name_strips_template_prefix() -> None:
+    app = _app_without_tk()
+
+    assert (
+        app._template_display_name("Template::Basic_Empire_Default")
+        == "Basic_Empire_Default"
+    )
+    assert app._template_display_name("NoPrefix") == "NoPrefix"
+
+
 def test_merge_non_equation_data_reads_players_templates_with_stack_order(
     tmp_path: Path,
 ) -> None:

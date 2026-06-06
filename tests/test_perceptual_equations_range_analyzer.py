@@ -113,3 +113,23 @@ def test_range_uses_final_literal_bounds_for_chained_variable_tokens(
 
     assert hero_range.minimum == 0.0
     assert hero_range.maximum == 3.0
+
+
+def test_range_handles_random_operator_as_rand_function(tmp_path: Path) -> None:
+    data_dir = tmp_path / "Data"
+    data_dir.mkdir()
+    _write_equations_xml(
+        data_dir / "eq.xml",
+        {
+            "Randomized": "2 # 5",
+        },
+    )
+
+    parser = PerceptualEquationsParser()
+    index = parser.build_index_from_folders([("Data", data_dir)])
+    analyzer = PerceptualEquationRangeAnalyzer(index, {})
+
+    randomized_range = analyzer.compute_equation_range("Randomized")
+
+    assert randomized_range.minimum == 2.0
+    assert randomized_range.maximum == 5.0
