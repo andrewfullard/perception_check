@@ -217,6 +217,7 @@ class PerceptualEquationsAppDisplayMixin:
         self.view.set_expression_text(
             equation.normalized_expression,
             structured=self._entry_type(equation.name) != "equation",
+            structured_links=self._build_structured_expression_links(equation.name),
         )
         self.view.set_related_links(self._build_related_links(equation.name))
 
@@ -314,15 +315,6 @@ class PerceptualEquationsAppDisplayMixin:
             return links
 
         if entry_type == "player":
-            for template_name in self.player_to_templates.get(entry_name, []):
-                if self.index is not None and self.index.get(template_name) is None:
-                    continue
-                links.append(
-                    (
-                        f"Template: {_template_display_name(template_name)}",
-                        template_name,
-                    )
-                )
             return links
 
         if entry_type == "template":
@@ -343,6 +335,58 @@ class PerceptualEquationsAppDisplayMixin:
             links.append((f"Goal: {_goal_display_name(goal_name)}", goal_name))
 
         return links
+
+    def _build_structured_expression_links(
+        self,
+        entry_name: str,
+    ) -> dict[tuple[str, str], str]:
+        """Build field-value links for structured entry rendering."""
+        if self._entry_type(entry_name) != "player":
+            return {}
+
+        links: dict[tuple[str, str], str] = {}
+        for template_name in self.player_to_templates.get(entry_name, []):
+            if self.index is not None and self.index.get(template_name) is None:
+                continue
+            display_name = _template_display_name(template_name)
+            for field_key in self._template_field_keys(
+                entry_name,
+                display_name,
+                template_name,
+            ):
+                links[(field_key, display_name)] = template_name
+                links[(field_key, template_name)] = template_name
+        return links
+
+    def _template_field_keys(
+        self,
+        entry_name: str,
+        template_display_name: str,
+        template_name: str,
+    ) -> set[str]:
+        """Find player structured fields containing one template value."""
+        if self.index is None:
+            return set()
+
+        entry = self.index.get(entry_name)
+        if entry is None:
+            return set()
+
+        field_keys: set[str] = set()
+        for line in entry.normalized_expression.splitlines():
+            if "=" not in line:
+                continue
+            field_key, field_value = line.split("=", 1)
+            field_key = field_key.strip()
+            if not field_key.lower().startswith("templates/"):
+                continue
+            field_values = [
+                item.strip() for item in field_value.replace(",", " ").split()
+            ]
+            if template_display_name in field_values or template_name in field_values:
+                field_keys.add(field_key)
+
+        return field_keys
 
     def _format_equation_range(self, equation_name: str) -> str:
         """Return display text for equation min/max derived from token bounds."""

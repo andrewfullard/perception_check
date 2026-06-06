@@ -169,7 +169,7 @@ def test_extract_player_template_links_splits_multi_template_field_values() -> N
     ]
 
 
-def test_build_related_links_for_player_include_templates() -> None:
+def test_build_related_links_for_player_excludes_templates() -> None:
     app = _app_without_tk()
     app.entry_types = {"Player::BasicEmpire": "player"}
     app.player_to_templates = {
@@ -179,9 +179,41 @@ def test_build_related_links_for_player_include_templates() -> None:
 
     links = app._build_related_links("Player::BasicEmpire")
 
-    assert links == [
-        ("Template: Generic_AI_Default", "Template::Generic_AI_Default"),
-    ]
+    assert links == []
+
+
+def test_build_structured_expression_links_for_player_templates() -> None:
+    app = _app_without_tk()
+    app.entry_types = {"Player::BasicEmpire": "player"}
+    app.player_to_templates = {
+        "Player::BasicEmpire": ["Template::Generic_AI_Default"],
+    }
+    player_entry = SimpleNamespace(
+        normalized_expression=(
+            "Name=BasicEmpire\n"
+            "Templates/Galactic=Generic_AI_Default\n"
+            "Templates/Land=Generic_Land"
+        )
+    )
+
+    def get_entry(name: str):
+        if name == "Player::BasicEmpire":
+            return player_entry
+        if name == "Template::Generic_AI_Default":
+            return object()
+        return None
+
+    app.index = SimpleNamespace(get=get_entry)
+
+    links = app._build_structured_expression_links("Player::BasicEmpire")
+
+    assert links == {
+        ("Templates/Galactic", "Generic_AI_Default"): "Template::Generic_AI_Default",
+        (
+            "Templates/Galactic",
+            "Template::Generic_AI_Default",
+        ): "Template::Generic_AI_Default",
+    }
 
 
 def test_build_related_links_for_template_include_players() -> None:

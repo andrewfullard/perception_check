@@ -281,7 +281,12 @@ class PerceptualEquationsView:
         if self.evaluate_row.winfo_manager():
             self.evaluate_row.pack_forget()
 
-    def set_expression_text(self, value: str, structured: bool = False) -> None:
+    def set_expression_text(
+        self,
+        value: str,
+        structured: bool = False,
+        structured_links: dict[tuple[str, str], str] | None = None,
+    ) -> None:
         """Render expression text as equation tokens or structured XML fields."""
         self.current_expression_template = value
         self._clear_expression_widgets()
@@ -289,7 +294,7 @@ class PerceptualEquationsView:
         if structured:
             structured_fields = self._parse_structured_fields(value)
             if structured_fields is not None:
-                self._render_structured_fields(structured_fields)
+                self._render_structured_fields(structured_fields, structured_links)
                 return
 
         parts = self._tokenize_expression(value)
@@ -380,10 +385,15 @@ class PerceptualEquationsView:
 
         return None
 
-    def _render_structured_fields(self, fields: list[tuple[str, str]]) -> None:
+    def _render_structured_fields(
+        self,
+        fields: list[tuple[str, str]],
+        links: dict[tuple[str, str], str] | None = None,
+    ) -> None:
         """Render structured key/value fields with hierarchical tag indentation."""
         row = 0
         previous_path: list[str] = []
+        links = links or {}
 
         for key, field_value in fields:
             key_path = [part for part in key.split("/") if part]
@@ -415,28 +425,57 @@ class PerceptualEquationsView:
             value_items = self._value_list_items(field_value)
             value_indent = len(key_path) * 12
             if value_items is None:
-                ttk.Label(
+                self._render_structured_value(
                     field_frame,
-                    text=field_value,
-                    wraplength=700,
-                    justify=tk.LEFT,
-                    anchor="w",
-                ).pack(anchor="w", padx=(value_indent, 0), pady=(2, 0))
+                    key,
+                    field_value,
+                    links,
+                    value_indent,
+                )
             else:
                 values_frame = ttk.Frame(field_frame)
                 values_frame.pack(anchor="w", padx=(value_indent, 0), pady=(2, 0))
                 for item in value_items:
-                    ttk.Label(
-                        values_frame,
-                        text=item,
-                        justify=tk.LEFT,
-                        anchor="w",
-                    ).pack(anchor="w")
+                    self._render_structured_value(values_frame, key, item, links, 0)
 
             previous_path = key_path
             row += 1
 
         self.expression_content.columnconfigure(0, weight=1)
+
+    def _render_structured_value(
+        self,
+        parent: tk.Widget,
+        field_key: str,
+        value: str,
+        links: dict[tuple[str, str], str],
+        indent: int,
+    ) -> None:
+        """Render one structured value as text or a navigation link."""
+        target = links.get((field_key, value))
+        if target is None:
+            ttk.Label(
+                parent,
+                text=value,
+                wraplength=700,
+                justify=tk.LEFT,
+                anchor="w",
+            ).pack(anchor="w", padx=(indent, 0), pady=(2, 0))
+            return
+
+        link = tk.Label(
+            parent,
+            text=value,
+            fg="#1a73e8",
+            cursor="hand2",
+            justify=tk.LEFT,
+            anchor="w",
+        )
+        link.pack(anchor="w", padx=(indent, 0), pady=(2, 0))
+        link.bind(
+            "<Button-1>",
+            lambda _e, entry_name=target: self._handle_entry_link_click(entry_name),
+        )
 
     def _tokenize_expression(self, expression: str) -> list[tuple[str, str]]:
         """Split expression into alternating editable token and operator chunks."""
