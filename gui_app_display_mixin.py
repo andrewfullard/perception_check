@@ -6,7 +6,11 @@ from tkinter import messagebox
 from typing import Callable
 
 from perceptual_equations_parser import PerceptualEquation
-from gui_app_text_utils import strip_entry_prefix
+from gui_app_text_utils import (
+    normalize_goal_name,
+    parse_structured_fields,
+    strip_entry_prefix,
+)
 
 
 _goal_display_name = partial(strip_entry_prefix, prefix="Goal::")
@@ -339,12 +343,21 @@ class PerceptualEquationsAppDisplayMixin:
     def _build_structured_expression_links(
         self,
         entry_name: str,
-    ) -> dict[tuple[str, str], str]:
+    ) -> dict[tuple[str, str], list[tuple[str, str]]]:
         """Build field-value links for structured entry rendering."""
-        if self._entry_type(entry_name) != "player":
-            return {}
+        entry_type = self._entry_type(entry_name)
+        if entry_type == "player":
+            return self._build_player_template_field_links(entry_name)
+        if entry_type == "template":
+            return self._build_template_goal_field_links(entry_name)
+        return {}
 
-        links: dict[tuple[str, str], str] = {}
+    def _build_player_template_field_links(
+        self,
+        entry_name: str,
+    ) -> dict[tuple[str, str], list[tuple[str, str]]]:
+        """Build field-value links from player template fields to templates."""
+        links: dict[tuple[str, str], list[tuple[str, str]]] = {}
         for template_name in self.player_to_templates.get(entry_name, []):
             if self.index is not None and self.index.get(template_name) is None:
                 continue
@@ -354,9 +367,96 @@ class PerceptualEquationsAppDisplayMixin:
                 display_name,
                 template_name,
             ):
-                links[(field_key, display_name)] = template_name
-                links[(field_key, template_name)] = template_name
+                link = [(display_name, template_name)]
+                links[(field_key, display_name)] = link
+                links[(field_key, template_name)] = link
         return links
+
+    def _build_template_goal_field_links(
+        self,
+        entry_name: str,
+    ) -> dict[tuple[str, str], list[tuple[str, str]]]:
+        """Build field-value links from template goal fields to matching goals."""
+        if self.index is None:
+            return {}
+
+        entry = self.index.get(entry_name)
+        if entry is None:
+            return {}
+
+        links: dict[tuple[str, str], list[tuple[str, str]]] = {}
+        for line in entry.normalized_expression.splitlines():
+            if "=" not in line:
+                continue
+            field_key, field_value = line.split("=", 1)
+            field_key = field_key.strip()
+            resolver = self._template_goal_field_resolver(field_key)
+            if resolver is None:
+                continue
+            for value in self._split_structured_value(field_value):
+                goal_links = resolver(value)
+                if goal_links:
+                    links[(field_key, value)] = goal_links
+
+        return links
+
+    def _template_goal_field_resolver(
+        self,
+        field_key: str,
+    ) -> Callable[[str], list[tuple[str, str]]] | None:
+        """Return the resolver for a template goal-list field."""
+        leaf_key = field_key.rsplit("/", 1)[-1].lower()
+        if leaf_key == "goal_type":
+            return self._resolve_goal_name_links
+        if leaf_key in {"category", "goal_category"}:
+            return self._resolve_goal_category_links
+        if leaf_key == "goals":
+            return self._resolve_goal_value_links
+        return None
+
+    def _resolve_goal_value_links(self, value: str) -> list[tuple[str, str]]:
+        """Resolve legacy template goal values as a name first, then category."""
+        direct_links = self._resolve_goal_name_links(value)
+        if direct_links:
+            return direct_links
+        return self._resolve_goal_category_links(value)
+
+    def _resolve_goal_name_links(self, value: str) -> list[tuple[str, str]]:
+        """Resolve one template goal-list value as an explicit goal name."""
+        if self.index is None:
+            return []
+
+        direct_goal_name = normalize_goal_name(value)
+        if direct_goal_name is not None and self.index.get(direct_goal_name) is not None:
+            return [(_goal_display_name(direct_goal_name), direct_goal_name)]
+        return []
+
+    def _resolve_goal_category_links(self, value: str) -> list[tuple[str, str]]:
+        """Resolve one template goal-list value as a goal category."""
+        if self.index is None:
+            return []
+
+        matching_goals: list[tuple[str, str]] = []
+        for goal_name in sorted(self._goal_names(), key=str.lower):
+            goal = self.index.get(goal_name)
+            if goal is None:
+                continue
+            fields = parse_structured_fields(goal.normalized_expression)
+            category = fields.get("category")
+            if category is not None and category.lower() == value.strip().lower():
+                matching_goals.append((_goal_display_name(goal_name), goal_name))
+
+        return matching_goals
+
+    def _goal_names(self) -> list[str]:
+        """Return loaded goal entry names."""
+        if self.index is None:
+            return []
+        return [
+            name
+            for name in self.index.effective_equations.keys()
+            if self._entry_type(name) == "goal"
+        ]
 
     def _template_field_keys(
         self,
@@ -380,13 +480,15 @@ class PerceptualEquationsAppDisplayMixin:
             field_key = field_key.strip()
             if not field_key.lower().startswith("templates/"):
                 continue
-            field_values = [
-                item.strip() for item in field_value.replace(",", " ").split()
-            ]
+            field_values = self._split_structured_value(field_value)
             if template_display_name in field_values or template_name in field_values:
                 field_keys.add(field_key)
 
         return field_keys
+
+    def _split_structured_value(self, field_value: str) -> list[str]:
+        """Split a structured field value into individual tokens."""
+        return [item.strip() for item in field_value.replace(",", " ").split()]
 
     def _format_equation_range(self, equation_name: str) -> str:
         """Return display text for equation min/max derived from token bounds."""

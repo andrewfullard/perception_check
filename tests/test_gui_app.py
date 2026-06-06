@@ -208,11 +208,125 @@ def test_build_structured_expression_links_for_player_templates() -> None:
     links = app._build_structured_expression_links("Player::BasicEmpire")
 
     assert links == {
-        ("Templates/Galactic", "Generic_AI_Default"): "Template::Generic_AI_Default",
+        ("Templates/Galactic", "Generic_AI_Default"): [
+            ("Generic_AI_Default", "Template::Generic_AI_Default")
+        ],
         (
             "Templates/Galactic",
             "Template::Generic_AI_Default",
-        ): "Template::Generic_AI_Default",
+        ): [("Generic_AI_Default", "Template::Generic_AI_Default")],
+    }
+
+
+def test_build_structured_expression_links_for_template_goal_names() -> None:
+    app = _app_without_tk()
+    app.entry_types = {
+        "Template::Basic": "template",
+        "Goal::Conquer_Pirate": "goal",
+    }
+    template_entry = SimpleNamespace(
+        normalized_expression="Turn_Off/Goals/Goal_Type=Conquer_Pirate"
+    )
+    goal_entry = SimpleNamespace(normalized_expression="Category=Offensive")
+
+    def get_entry(name: str):
+        if name == "Template::Basic":
+            return template_entry
+        if name == "Goal::Conquer_Pirate":
+            return goal_entry
+        return None
+
+    app.index = SimpleNamespace(
+        get=get_entry,
+        effective_equations={
+            "Template::Basic": template_entry,
+            "Goal::Conquer_Pirate": goal_entry,
+        },
+    )
+
+    links = app._build_structured_expression_links("Template::Basic")
+
+    assert links == {
+        ("Turn_Off/Goals/Goal_Type", "Conquer_Pirate"): [
+            ("Conquer_Pirate", "Goal::Conquer_Pirate")
+        ],
+    }
+
+
+def test_build_structured_expression_links_for_template_goal_categories() -> None:
+    app = _app_without_tk()
+    app.entry_types = {
+        "Template::Basic": "template",
+        "Goal::Conquer_Pirate": "goal",
+        "Goal::Raid_Convoy": "goal",
+        "Goal::Build_Defenses": "goal",
+    }
+    template_entry = SimpleNamespace(
+        normalized_expression="Turn_On/Goals/Category=Offensive"
+    )
+    goals = {
+        "Goal::Conquer_Pirate": SimpleNamespace(
+            normalized_expression="Category=Offensive"
+        ),
+        "Goal::Raid_Convoy": SimpleNamespace(normalized_expression="Category=Offensive"),
+        "Goal::Build_Defenses": SimpleNamespace(normalized_expression="Category=Defensive"),
+    }
+
+    def get_entry(name: str):
+        if name == "Template::Basic":
+            return template_entry
+        return goals.get(name)
+
+    app.index = SimpleNamespace(
+        get=get_entry,
+        effective_equations={
+            "Template::Basic": template_entry,
+            **goals,
+        },
+    )
+
+    links = app._build_structured_expression_links("Template::Basic")
+
+    assert links == {
+        ("Turn_On/Goals/Category", "Offensive"): [
+            ("Conquer_Pirate", "Goal::Conquer_Pirate"),
+            ("Raid_Convoy", "Goal::Raid_Convoy"),
+        ],
+    }
+
+
+def test_build_structured_expression_links_for_template_goal_categories_by_plan_key() -> None:
+    app = _app_without_tk()
+    app.entry_types = {
+        "Template::Basic": "template",
+        "Goal::Conquer_Pirate": "goal",
+    }
+    template_entry = SimpleNamespace(
+        normalized_expression="Plans/Goal_Category=Offensive"
+    )
+    goal_entry = SimpleNamespace(normalized_expression="Category=Offensive")
+
+    def get_entry(name: str):
+        if name == "Template::Basic":
+            return template_entry
+        if name == "Goal::Conquer_Pirate":
+            return goal_entry
+        return None
+
+    app.index = SimpleNamespace(
+        get=get_entry,
+        effective_equations={
+            "Template::Basic": template_entry,
+            "Goal::Conquer_Pirate": goal_entry,
+        },
+    )
+
+    links = app._build_structured_expression_links("Template::Basic")
+
+    assert links == {
+        ("Plans/Goal_Category", "Offensive"): [
+            ("Conquer_Pirate", "Goal::Conquer_Pirate")
+        ],
     }
 
 

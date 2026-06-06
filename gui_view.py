@@ -6,6 +6,9 @@ from tkinter import ttk
 from typing import Callable
 
 
+StructuredLinkMap = dict[tuple[str, str], list[tuple[str, str]]]
+
+
 _EDITABLE_TOKEN_PATTERN = re.compile(
     r"(?:(?:Variable[\w\.]*)|(?:Game\.[\w\.]*)|(?:Function_[\w\.]*)|(?:Script_[\w\.]*))"
     r"(?:\s*\{[^}]*\})?"
@@ -314,7 +317,7 @@ class PerceptualEquationsView:
         self,
         value: str,
         structured: bool = False,
-        structured_links: dict[tuple[str, str], str] | None = None,
+        structured_links: StructuredLinkMap | None = None,
     ) -> None:
         """Render expression text as equation tokens or structured XML fields."""
         self.current_expression_template = value
@@ -417,7 +420,7 @@ class PerceptualEquationsView:
     def _render_structured_fields(
         self,
         fields: list[tuple[str, str]],
-        links: dict[tuple[str, str], str] | None = None,
+        links: StructuredLinkMap | None = None,
     ) -> None:
         """Render structured key/value fields with hierarchical tag indentation."""
         row = 0
@@ -477,12 +480,12 @@ class PerceptualEquationsView:
         parent: tk.Widget,
         field_key: str,
         value: str,
-        links: dict[tuple[str, str], str],
+        links: StructuredLinkMap,
         indent: int,
     ) -> None:
         """Render one structured value as text or a navigation link."""
-        target = links.get((field_key, value))
-        if target is None:
+        targets = links.get((field_key, value))
+        if targets is None:
             ttk.Label(
                 parent,
                 text=value,
@@ -492,19 +495,24 @@ class PerceptualEquationsView:
             ).pack(anchor="w", padx=(indent, 0), pady=(2, 0))
             return
 
-        link = tk.Label(
-            parent,
-            text=value,
-            fg="#1a73e8",
-            cursor="hand2",
-            justify=tk.LEFT,
-            anchor="w",
-        )
-        link.pack(anchor="w", padx=(indent, 0), pady=(2, 0))
-        link.bind(
-            "<Button-1>",
-            lambda _e, entry_name=target: self._handle_entry_link_click(entry_name),
-        )
+        for index, (text, target) in enumerate(targets):
+            link = tk.Label(
+                parent,
+                text=text,
+                fg="#1a73e8",
+                cursor="hand2",
+                justify=tk.LEFT,
+                anchor="w",
+            )
+            link.pack(
+                anchor="w",
+                padx=(indent, 0),
+                pady=(2 if index == 0 else 0, 0),
+            )
+            link.bind(
+                "<Button-1>",
+                lambda _e, entry_name=target: self._handle_entry_link_click(entry_name),
+            )
 
     def _tokenize_expression(self, expression: str) -> list[tuple[str, str]]:
         """Split expression into alternating editable token and operator chunks."""
