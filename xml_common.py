@@ -64,3 +64,29 @@ def parse_named_entries_text_file(
         entries[entry_name] = summary_text
 
     return xml_path, entries
+
+
+def parse_single_named_entry_text_file(
+    xml_file: str | Path,
+    expected_root_tag: str,
+    name_prefix: str,
+    name_tag: str = "Name",
+) -> Tuple[Path, Dict[str, str]]:
+    """Parse one XML root as a single prefixed name->summary text entry."""
+    xml_path = Path(xml_file)
+    tree = ET.parse(xml_path)
+    root = tree.getroot()
+
+    if root.tag != expected_root_tag:
+        raise ValueError(
+            f"Expected root tag '{expected_root_tag}' in {xml_path}, found '{root.tag}'"
+        )
+
+    entry_name_text = normalize_expression(root.findtext(name_tag, default=""))
+    if not entry_name_text:
+        raise ValueError(
+            f"Expected non-empty <{name_tag}> in {xml_path} under '{expected_root_tag}'"
+        )
+
+    summary_text = extract_structured_entry_text(root)
+    return xml_path, {f"{name_prefix}{entry_name_text}": summary_text}

@@ -4,6 +4,10 @@ from pathlib import Path
 from typing import Dict, Iterable, List, Tuple
 
 from data_models import (
+    AIPlayerDocument,
+    AIPlayerEntry,
+    AITemplateDocument,
+    AITemplateEntry,
     GoalDocument,
     GoalEntry,
     GoalFunctionDocument,
@@ -24,6 +28,12 @@ from parse_goals import (
     parse_goals_file,
     parse_goals_folder,
 )
+from parse_players import (
+    parse_players_file,
+    parse_players_folder,
+    parse_templates_file,
+    parse_templates_folder,
+)
 
 
 class PerceptualEquationsParser:
@@ -37,6 +47,12 @@ class PerceptualEquationsParser:
 
     def parse_goals_file(self, xml_file: str | Path) -> GoalDocument:
         return parse_goals_file(xml_file)
+
+    def parse_players_file(self, xml_file: str | Path) -> AIPlayerDocument:
+        return parse_players_file(xml_file)
+
+    def parse_templates_file(self, xml_file: str | Path) -> AITemplateDocument:
+        return parse_templates_file(xml_file)
 
     def parse_folder(
         self, folder: str | Path, pattern: str = "*.xml"
@@ -52,6 +68,16 @@ class PerceptualEquationsParser:
         self, folder: str | Path, pattern: str = "*.xml"
     ) -> List[GoalDocument]:
         return parse_goals_folder(folder, pattern=pattern)
+
+    def parse_players_folder(
+        self, folder: str | Path, pattern: str = "*.xml"
+    ) -> List[AIPlayerDocument]:
+        return parse_players_folder(folder, pattern=pattern)
+
+    def parse_templates_folder(
+        self, folder: str | Path, pattern: str = "*.xml"
+    ) -> List[AITemplateDocument]:
+        return parse_templates_folder(folder, pattern=pattern)
 
     def parse_folder_recursive(
         self, folder: str | Path, pattern: str = "*.xml"
@@ -149,6 +175,10 @@ __all__ = [
     "PerceptualEquationDocument",
     "PerceptualEquationLayer",
     "PerceptualEquationIndex",
+    "AIPlayerEntry",
+    "AIPlayerDocument",
+    "AITemplateEntry",
+    "AITemplateDocument",
     "GoalFunctionEntry",
     "GoalFunctionDocument",
     "GoalEntry",

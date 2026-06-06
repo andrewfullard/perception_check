@@ -8,6 +8,10 @@ import tkinter as tk
 from tkinter import filedialog, messagebox
 
 from perceptual_equations_parser import (
+    AIPlayerDocument,
+    AIPlayerEntry,
+    AITemplateDocument,
+    AITemplateEntry,
     GoalDocument,
     GoalEntry,
     GoalFunctionDocument,
@@ -49,6 +53,8 @@ class PerceptualEquationsApp:
         self.goal_function_links: dict[str, tuple[str, str]] = {}
         self.entry_types: dict[str, str] = {}
         self.goal_display_to_entry: dict[str, str] = {}
+        self.player_display_to_entry: dict[str, str] = {}
+        self.template_display_to_entry: dict[str, str] = {}
 
         self.view = PerceptualEquationsView(root)
         self._load_token_bounds_config()
@@ -58,6 +64,8 @@ class PerceptualEquationsApp:
             on_search_changed=self._refresh_list,
             on_selection_changed=self._on_selection_changed,
             on_goal_selection_changed=self._on_goal_selection_changed,
+            on_player_selection_changed=self._on_player_selection_changed,
+            on_template_selection_changed=self._on_template_selection_changed,
             on_evaluate=self._evaluate_expression,
             on_function_token_click=self._on_function_token_click,
             on_entry_link_click=self._on_related_entry_click,
@@ -121,7 +129,9 @@ class PerceptualEquationsApp:
                 name: "equation" for name in self.index.effective_equations.keys()
             }
             self.goal_display_to_entry = {}
-            self._merge_goal_data_into_index(root, upper_layers)
+            self.player_display_to_entry = {}
+            self.template_display_to_entry = {}
+            self._merge_non_equation_data_into_index(root, upper_layers)
             self.range_analyzer = PerceptualEquationRangeAnalyzer(
                 self.index,
                 self.token_bounds,
@@ -134,8 +144,10 @@ class PerceptualEquationsApp:
         self.view.folder_var.set(f"{root} [{loaded_layers}]")
         self._refresh_list()
 
-    def _merge_goal_data_into_index(self, root: Path, upper_layers: list[str]) -> None:
-        """Merge AI GoalFunctions and Goals entries resolved per layer."""
+    def _merge_non_equation_data_into_index(
+        self, root: Path, upper_layers: list[str]
+    ) -> None:
+        """Merge AI non-equation entries resolved per layer across stack folders."""
         if self.index is None:
             return
 
@@ -160,6 +172,28 @@ class PerceptualEquationsApp:
         for layer_name, goals_folder in goal_layers:
             documents = self.parser.parse_goals_folder(goals_folder)
             self._merge_goal_documents(layer_name, documents)
+
+        player_layers = resolve_stack_layer_content_folders(
+            root=root,
+            upper_layers=upper_layers,
+            content_folder="Players",
+            require_data_layer=False,
+            require_selected_upper_layers=False,
+        )
+        for layer_name, players_folder in player_layers:
+            documents = self.parser.parse_players_folder(players_folder)
+            self._merge_player_documents(layer_name, documents)
+
+        template_layers = resolve_stack_layer_content_folders(
+            root=root,
+            upper_layers=upper_layers,
+            content_folder="Templates",
+            require_data_layer=False,
+            require_selected_upper_layers=False,
+        )
+        for layer_name, templates_folder in template_layers:
+            documents = self.parser.parse_templates_folder(templates_folder)
+            self._merge_template_documents(layer_name, documents)
 
     def _merge_goal_function_documents(
         self,
@@ -205,10 +239,36 @@ class PerceptualEquationsApp:
             for entry in document:
                 self._merge_non_equation_entry(layer_name, entry)
 
+    def _merge_player_documents(
+        self,
+        layer_name: str,
+        documents: list[AIPlayerDocument],
+    ) -> None:
+        """Apply player documents into current effective index."""
+        if self.index is None:
+            return
+
+        for document in documents:
+            for entry in document:
+                self._merge_non_equation_entry(layer_name, entry)
+
+    def _merge_template_documents(
+        self,
+        layer_name: str,
+        documents: list[AITemplateDocument],
+    ) -> None:
+        """Apply template documents into current effective index."""
+        if self.index is None:
+            return
+
+        for document in documents:
+            for entry in document:
+                self._merge_non_equation_entry(layer_name, entry)
+
     def _merge_non_equation_entry(
         self,
         layer_name: str,
-        entry: GoalFunctionEntry | GoalEntry,
+        entry: GoalFunctionEntry | GoalEntry | AIPlayerEntry | AITemplateEntry,
     ) -> None:
         """Adapt non-equation entries so they can be shown in the unified UI list."""
         if self.index is None:
@@ -226,14 +286,20 @@ class PerceptualEquationsApp:
         self.index.effective_layers[equation.name] = layer_name
         if isinstance(entry, GoalEntry):
             self.entry_types[equation.name] = "goal"
-        else:
+        elif isinstance(entry, GoalFunctionEntry):
             self.entry_types[equation.name] = "goal_function"
+        elif isinstance(entry, AIPlayerEntry):
+            self.entry_types[equation.name] = "player"
+        else:
+            self.entry_types[equation.name] = "template"
 
     def _refresh_list(self) -> None:
         """Refresh listbox content using current index and search filter."""
         if self.index is None:
             self.filtered_names = []
             filtered_goal_names: list[str] = []
+            filtered_player_names: list[str] = []
+            filtered_template_names: list[str] = []
         else:
             all_names = sorted(self.index.effective_equations.keys(), key=str.lower)
             goal_names = [
@@ -248,6 +314,32 @@ class PerceptualEquationsApp:
                 ]
             else:
                 filtered_goal_names = goal_names
+
+            player_names = [
+                name for name in all_names if self._entry_type(name) == "player"
+            ]
+            player_term = self.view.players_search_var.get().strip().lower()
+            if player_term:
+                filtered_player_names = [
+                    name
+                    for name in player_names
+                    if player_term in self._player_display_name(name).lower()
+                ]
+            else:
+                filtered_player_names = player_names
+
+            template_names = [
+                name for name in all_names if self._entry_type(name) == "template"
+            ]
+            template_term = self.view.templates_search_var.get().strip().lower()
+            if template_term:
+                filtered_template_names = [
+                    name
+                    for name in template_names
+                    if template_term in self._template_display_name(name).lower()
+                ]
+            else:
+                filtered_template_names = template_names
 
             names = [name for name in all_names if self._entry_type(name) == "equation"]
             term = self.view.search_var.get().strip().lower()
@@ -269,6 +361,28 @@ class PerceptualEquationsApp:
             goal_display_names.append(goal_display_name)
 
         self.view.set_goal_names(goal_display_names)
+
+        self.player_display_to_entry = {}
+        player_display_names: list[str] = []
+        for player_name in filtered_player_names:
+            player_display_name = self._player_display_name(player_name)
+            if player_display_name in self.player_display_to_entry:
+                player_display_name = player_name
+            self.player_display_to_entry[player_display_name] = player_name
+            player_display_names.append(player_display_name)
+
+        self.view.set_player_names(player_display_names)
+
+        self.template_display_to_entry = {}
+        template_display_names: list[str] = []
+        for template_name in filtered_template_names:
+            template_display_name = self._template_display_name(template_name)
+            if template_display_name in self.template_display_to_entry:
+                template_display_name = template_name
+            self.template_display_to_entry[template_display_name] = template_name
+            template_display_names.append(template_display_name)
+
+        self.view.set_template_names(template_display_names)
 
         if self.filtered_names:
             self.view.names_listbox.selection_set(0)
@@ -309,6 +423,72 @@ class PerceptualEquationsApp:
         self.view.names_listbox.selection_clear(0, tk.END)
         self._display_equation(selected_goal)
 
+    def _on_player_selection_changed(self, _event: tk.Event) -> None:
+        """Jump to selected Player::* entry from the AI players tab."""
+        if self.index is None:
+            return
+
+        selection = self.view.players_listbox.curselection()
+        if not selection:
+            return
+
+        selected_display_name = self.view.players_listbox.get(selection[0])
+        if not selected_display_name:
+            return
+
+        player_name = self.player_display_to_entry.get(
+            selected_display_name,
+            selected_display_name,
+        )
+        if player_name is None:
+            return
+
+        selected_player = self.index.get(player_name)
+        if selected_player is None:
+            messagebox.showinfo(
+                "Entry not found",
+                f"No loaded entry named '{player_name}' was found.",
+            )
+            return
+
+        # Players are intentionally hidden from the Equations list, so display
+        # directly instead of routing through list selection logic.
+        self.view.names_listbox.selection_clear(0, tk.END)
+        self._display_equation(selected_player)
+
+    def _on_template_selection_changed(self, _event: tk.Event) -> None:
+        """Jump to selected Template::* entry from the AI templates tab."""
+        if self.index is None:
+            return
+
+        selection = self.view.templates_listbox.curselection()
+        if not selection:
+            return
+
+        selected_display_name = self.view.templates_listbox.get(selection[0])
+        if not selected_display_name:
+            return
+
+        template_name = self.template_display_to_entry.get(
+            selected_display_name,
+            selected_display_name,
+        )
+        if template_name is None:
+            return
+
+        selected_template = self.index.get(template_name)
+        if selected_template is None:
+            messagebox.showinfo(
+                "Entry not found",
+                f"No loaded entry named '{template_name}' was found.",
+            )
+            return
+
+        # Templates are intentionally hidden from the Equations list, so display
+        # directly instead of routing through list selection logic.
+        self.view.names_listbox.selection_clear(0, tk.END)
+        self._display_equation(selected_template)
+
     def _on_selection_changed(self, _event: tk.Event) -> None:
         """Display the currently selected equation from the filtered list."""
         if self.index is None:
@@ -337,7 +517,7 @@ class PerceptualEquationsApp:
             return
 
         self.view.set_evaluation_controls_visible(
-            self._entry_type(equation.name) != "goal"
+            self._entry_type(equation.name) == "equation"
         )
 
         layer_name = self.index.layer_for(equation.name) if self.index else None
@@ -517,7 +697,7 @@ class PerceptualEquationsApp:
             items.append(value)
 
     def _entry_type(self, entry_name: str) -> str:
-        """Return entry type metadata: equation, goal, or goal_function."""
+        """Return entry type metadata used by list, links, and evaluation UI."""
         explicit_type = self.entry_types.get(entry_name)
         if explicit_type is not None:
             return explicit_type
@@ -533,6 +713,18 @@ class PerceptualEquationsApp:
         if goal_name.startswith("Goal::"):
             return goal_name[len("Goal::") :]
         return goal_name
+
+    def _player_display_name(self, player_name: str) -> str:
+        """Return UI display name for a player entry."""
+        if player_name.startswith("Player::"):
+            return player_name[len("Player::") :]
+        return player_name
+
+    def _template_display_name(self, template_name: str) -> str:
+        """Return UI display name for a template entry."""
+        if template_name.startswith("Template::"):
+            return template_name[len("Template::") :]
+        return template_name
 
     def _format_equation_range(self, equation_name: str) -> str:
         """Return display text for equation min/max derived from token bounds."""

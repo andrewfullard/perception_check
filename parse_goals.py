@@ -9,7 +9,9 @@ from data_models import (
     GoalFunctionDocument,
     GoalFunctionEntry,
 )
-from xml_common import parse_named_entries_text_file
+from xml_common import (
+    parse_named_entries_text_file,
+)
 
 
 def parse_goal_functions_file(xml_file: str | Path) -> GoalFunctionDocument:

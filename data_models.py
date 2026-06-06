@@ -103,6 +103,66 @@ class GoalDocument:
 
 
 @dataclass
+class AIPlayerEntry:
+    """A single entry parsed from an <AIPlayerType> file."""
+
+    name: str
+    raw_expression: str
+    normalized_expression: str
+    source_file: Path
+
+
+@dataclass
+class AIPlayerDocument:
+    """A parsed AI Players XML file containing one named player entry."""
+
+    source_file: Path
+    players: Dict[str, AIPlayerEntry] = field(default_factory=dict)
+
+    def get(self, name: str) -> Optional[AIPlayerEntry]:
+        return self.players.get(name)
+
+    def require(self, name: str) -> AIPlayerEntry:
+        entry = self.get(name)
+        if entry is None:
+            raise KeyError(f"Player '{name}' not found in {self.source_file}")
+        return entry
+
+    def __iter__(self) -> Iterator[AIPlayerEntry]:
+        return iter(self.players.values())
+
+
+@dataclass
+class AITemplateEntry:
+    """A single entry parsed from an <AITemplates> file."""
+
+    name: str
+    raw_expression: str
+    normalized_expression: str
+    source_file: Path
+
+
+@dataclass
+class AITemplateDocument:
+    """A parsed AI Templates XML file containing named template entries."""
+
+    source_file: Path
+    templates: Dict[str, AITemplateEntry] = field(default_factory=dict)
+
+    def get(self, name: str) -> Optional[AITemplateEntry]:
+        return self.templates.get(name)
+
+    def require(self, name: str) -> AITemplateEntry:
+        entry = self.get(name)
+        if entry is None:
+            raise KeyError(f"Template '{name}' not found in {self.source_file}")
+        return entry
+
+    def __iter__(self) -> Iterator[AITemplateEntry]:
+        return iter(self.templates.values())
+
+
+@dataclass
 class PerceptualEquationLayer:
     """A logical load layer, such as Data or a specific submod layer."""
 

@@ -24,6 +24,8 @@ class PerceptualEquationsView:
         self.folder_var = tk.StringVar(value="No folder loaded")
         self.search_var = tk.StringVar()
         self.goals_search_var = tk.StringVar()
+        self.players_search_var = tk.StringVar()
+        self.templates_search_var = tk.StringVar()
         self.layer_var = tk.StringVar(value="-")
         self.source_var = tk.StringVar(value="-")
         self.range_var = tk.StringVar(value="-")
@@ -35,6 +37,8 @@ class PerceptualEquationsView:
 
         self.names_listbox: tk.Listbox
         self.goals_listbox: tk.Listbox
+        self.players_listbox: tk.Listbox
+        self.templates_listbox: tk.Listbox
         self.expression_canvas: tk.Canvas
         self.expression_content: ttk.Frame
         self.evaluate_row: ttk.Frame
@@ -105,8 +109,12 @@ class PerceptualEquationsView:
 
         entries_tab = ttk.Frame(left_tabs)
         goals_tab = ttk.Frame(left_tabs)
+        players_tab = ttk.Frame(left_tabs)
+        templates_tab = ttk.Frame(left_tabs)
         left_tabs.add(entries_tab, text="Equations")
         left_tabs.add(goals_tab, text="AI Goals")
+        left_tabs.add(players_tab, text="AI Players")
+        left_tabs.add(templates_tab, text="AI Templates")
 
         ttk.Label(entries_tab, text="Search").pack(anchor=tk.W)
         ttk.Entry(entries_tab, textvariable=self.search_var).pack(
@@ -145,6 +153,47 @@ class PerceptualEquationsView:
 
         self.goals_listbox.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
         goals_scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+
+        ttk.Label(players_tab, text="Search").pack(anchor=tk.W)
+        ttk.Entry(players_tab, textvariable=self.players_search_var).pack(
+            fill=tk.X, pady=(4, 8)
+        )
+
+        players_list_host = ttk.Frame(players_tab)
+        players_list_host.pack(fill=tk.BOTH, expand=True)
+
+        self.players_listbox = tk.Listbox(players_list_host, exportselection=False)
+        players_scrollbar = ttk.Scrollbar(
+            players_list_host,
+            orient=tk.VERTICAL,
+            command=self.players_listbox.yview,
+        )
+        self.players_listbox.configure(yscrollcommand=players_scrollbar.set)
+
+        self.players_listbox.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        players_scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+
+        ttk.Label(templates_tab, text="Search").pack(anchor=tk.W)
+        ttk.Entry(templates_tab, textvariable=self.templates_search_var).pack(
+            fill=tk.X, pady=(4, 8)
+        )
+
+        templates_list_host = ttk.Frame(templates_tab)
+        templates_list_host.pack(fill=tk.BOTH, expand=True)
+
+        self.templates_listbox = tk.Listbox(
+            templates_list_host,
+            exportselection=False,
+        )
+        templates_scrollbar = ttk.Scrollbar(
+            templates_list_host,
+            orient=tk.VERTICAL,
+            command=self.templates_listbox.yview,
+        )
+        self.templates_listbox.configure(yscrollcommand=templates_scrollbar.set)
+
+        self.templates_listbox.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        templates_scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
 
         detail_header = ttk.Frame(right)
         detail_header.pack(fill=tk.X)
@@ -213,6 +262,8 @@ class PerceptualEquationsView:
         on_search_changed: Callable[[], None],
         on_selection_changed: Callable[[tk.Event], None],
         on_goal_selection_changed: Callable[[tk.Event], None],
+        on_player_selection_changed: Callable[[tk.Event], None],
+        on_template_selection_changed: Callable[[tk.Event], None],
         on_evaluate: Callable[[], None],
         on_function_token_click: Callable[[str], None],
         on_entry_link_click: Callable[[str], None],
@@ -225,8 +276,12 @@ class PerceptualEquationsView:
         self._on_entry_link_click = on_entry_link_click
         self.search_var.trace_add("write", lambda *_: on_search_changed())
         self.goals_search_var.trace_add("write", lambda *_: on_search_changed())
+        self.players_search_var.trace_add("write", lambda *_: on_search_changed())
+        self.templates_search_var.trace_add("write", lambda *_: on_search_changed())
         self.names_listbox.bind("<<ListboxSelect>>", on_selection_changed)
         self.goals_listbox.bind("<<ListboxSelect>>", on_goal_selection_changed)
+        self.players_listbox.bind("<<ListboxSelect>>", on_player_selection_changed)
+        self.templates_listbox.bind("<<ListboxSelect>>", on_template_selection_changed)
 
     def set_related_links(self, links: list[tuple[str, str]]) -> None:
         """Render related-entry links in the details panel."""
@@ -257,6 +312,18 @@ class PerceptualEquationsView:
         self.goals_listbox.delete(0, tk.END)
         for name in goal_names:
             self.goals_listbox.insert(tk.END, name)
+
+    def set_player_names(self, player_names: list[str]) -> None:
+        """Render loaded AI player names in the players tab."""
+        self.players_listbox.delete(0, tk.END)
+        for name in player_names:
+            self.players_listbox.insert(tk.END, name)
+
+    def set_template_names(self, template_names: list[str]) -> None:
+        """Render loaded AI template names in the templates tab."""
+        self.templates_listbox.delete(0, tk.END)
+        for name in template_names:
+            self.templates_listbox.insert(tk.END, name)
 
     def set_evaluation_controls_visible(self, visible: bool) -> None:
         """Show or hide evaluation controls for the current entry type."""
