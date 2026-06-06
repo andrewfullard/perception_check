@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Dict, List, Tuple
+from typing import Callable, Dict, List, Tuple
 import re
 import xml.etree.ElementTree as ET
 
@@ -38,10 +38,43 @@ def extract_structured_entry_text(entry_element: ET.Element) -> str:
     return normalize_expression(extract_raw_expression(entry_element))
 
 
+def extract_structured_entry_text_with_paths(
+    entry_element: ET.Element,
+    path_separator: str = "/",
+) -> str:
+    """Return key/value text including nested tag paths for non-equation nodes."""
+    fields: List[str] = []
+
+    def _walk(node: ET.Element, path: List[str]) -> None:
+        children = [child for child in node if isinstance(child.tag, str)]
+        if children:
+            for child in children:
+                _walk(child, [*path, child.tag])
+            return
+
+        key = path_separator.join(path)
+        value = normalize_expression("".join(node.itertext()))
+        if value:
+            fields.append(f"{key}={value}")
+        else:
+            fields.append(key)
+
+    for child in entry_element:
+        if not isinstance(child.tag, str):
+            continue
+        _walk(child, [child.tag])
+
+    if fields:
+        return "\n".join(fields)
+
+    return normalize_expression(extract_raw_expression(entry_element))
+
+
 def parse_named_entries_text_file(
     xml_file: str | Path,
     expected_root_tag: str,
     name_prefix: str,
+    entry_text_extractor: Callable[[ET.Element], str] = extract_structured_entry_text,
 ) -> Tuple[Path, Dict[str, str]]:
     """Parse direct root children into a prefixed name->summary text map."""
     xml_path = Path(xml_file)
@@ -59,7 +92,7 @@ def parse_named_entries_text_file(
         if not isinstance(child.tag, str):
             continue
 
-        summary_text = extract_structured_entry_text(child)
+        summary_text = entry_text_extractor(child)
         entry_name = f"{name_prefix}{child.tag}"
         entries[entry_name] = summary_text
 
@@ -71,6 +104,7 @@ def parse_single_named_entry_text_file(
     expected_root_tag: str,
     name_prefix: str,
     name_tag: str = "Name",
+    entry_text_extractor: Callable[[ET.Element], str] = extract_structured_entry_text,
 ) -> Tuple[Path, Dict[str, str]]:
     """Parse one XML root as a single prefixed name->summary text entry."""
     xml_path = Path(xml_file)
@@ -88,5 +122,5 @@ def parse_single_named_entry_text_file(
             f"Expected non-empty <{name_tag}> in {xml_path} under '{expected_root_tag}'"
         )
 
-    summary_text = extract_structured_entry_text(root)
+    summary_text = entry_text_extractor(root)
     return xml_path, {f"{name_prefix}{entry_name_text}": summary_text}

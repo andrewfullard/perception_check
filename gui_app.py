@@ -525,7 +525,10 @@ class PerceptualEquationsApp:
         self.view.source_var.set(equation.source_file.name)
         self.view.range_var.set(self._format_entry_range(equation.name))
         self.view.result_var.set("-")
-        self.view.set_expression_text(equation.normalized_expression)
+        self.view.set_expression_text(
+            equation.normalized_expression,
+            structured=self._entry_type(equation.name) != "equation",
+        )
         self.view.set_related_links(self._build_related_links(equation.name))
 
     def _on_related_entry_click(self, entry_name: str) -> None:

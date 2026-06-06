@@ -337,10 +337,16 @@ class PerceptualEquationsView:
         if self.evaluate_row.winfo_manager():
             self.evaluate_row.pack_forget()
 
-    def set_expression_text(self, value: str) -> None:
-        """Render expression as operator labels and editable variable boxes."""
+    def set_expression_text(self, value: str, structured: bool = False) -> None:
+        """Render expression text as equation tokens or structured XML fields."""
         self.current_expression_template = value
         self._clear_expression_widgets()
+
+        if structured:
+            structured_fields = self._parse_structured_fields(value)
+            if structured_fields is not None:
+                self._render_structured_fields(structured_fields)
+                return
 
         parts = self._tokenize_expression(value)
         row = 0
@@ -385,6 +391,105 @@ class PerceptualEquationsView:
                     justify=tk.LEFT,
                 ).grid(row=row, column=0, sticky="w", pady=(2, 2))
 
+            row += 1
+
+        self.expression_content.columnconfigure(0, weight=1)
+
+    def _parse_structured_fields(self, value: str) -> list[tuple[str, str]] | None:
+        """Parse key=value lines for non-equation XML entry rendering."""
+        lines = [line.strip() for line in value.splitlines() if line.strip()]
+        if not lines:
+            return None
+
+        fields: list[tuple[str, str]] = []
+        for line in lines:
+            if "=" not in line:
+                return None
+            key, field_value = line.split("=", 1)
+            key = key.strip()
+            field_value = field_value.strip()
+            if not key:
+                return None
+            fields.append((key, field_value))
+
+        return fields
+
+    def _value_list_items(self, field_value: str) -> list[str] | None:
+        """Return list items when a field value appears to be a token list."""
+        newline_items = [
+            item.strip() for item in field_value.splitlines() if item.strip()
+        ]
+        if len(newline_items) > 1:
+            return newline_items
+
+        space_items = field_value.split()
+        if len(space_items) <= 1:
+            return None
+
+        # Treat values as list-like only when each token resembles an identifier.
+        if not all(re.fullmatch(r"[A-Za-z0-9_.:-]+", item) for item in space_items):
+            return None
+
+        # Avoid splitting plain prose by requiring identifier-style hints.
+        if any(re.search(r"[_.\d]|[a-z][A-Z]", item) for item in space_items):
+            return space_items
+
+        return None
+
+    def _render_structured_fields(self, fields: list[tuple[str, str]]) -> None:
+        """Render structured key/value fields with hierarchical tag indentation."""
+        row = 0
+        previous_path: list[str] = []
+
+        for key, field_value in fields:
+            key_path = [part for part in key.split("/") if part]
+            if not key_path:
+                key_path = [key]
+
+            shared_depth = 0
+            while (
+                shared_depth < len(previous_path)
+                and shared_depth < len(key_path)
+                and previous_path[shared_depth] == key_path[shared_depth]
+            ):
+                shared_depth += 1
+
+            field_frame = ttk.Frame(self.expression_content)
+            field_frame.grid(row=row, column=0, sticky="ew", pady=(2, 6))
+
+            for depth, tag_name in enumerate(key_path):
+                if depth < shared_depth:
+                    continue
+                ttk.Label(
+                    field_frame,
+                    text=tag_name,
+                    font=("TkDefaultFont", 10, "bold"),
+                    justify=tk.LEFT,
+                    anchor="w",
+                ).pack(anchor="w", padx=(depth * 12, 0))
+
+            value_items = self._value_list_items(field_value)
+            value_indent = len(key_path) * 12
+            if value_items is None:
+                ttk.Label(
+                    field_frame,
+                    text=field_value,
+                    wraplength=700,
+                    justify=tk.LEFT,
+                    anchor="w",
+                ).pack(anchor="w", padx=(value_indent, 0), pady=(2, 0))
+            else:
+                values_frame = ttk.Frame(field_frame)
+                values_frame.pack(anchor="w", padx=(value_indent, 0), pady=(2, 0))
+                for item in value_items:
+                    ttk.Label(
+                        values_frame,
+                        text=item,
+                        justify=tk.LEFT,
+                        anchor="w",
+                    ).pack(anchor="w")
+
+            previous_path = key_path
             row += 1
 
         self.expression_content.columnconfigure(0, weight=1)

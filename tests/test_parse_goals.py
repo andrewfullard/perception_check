@@ -145,9 +145,9 @@ def test_parse_players_file_produces_prefixed_single_entry(tmp_path: Path) -> No
     entry = document.require("Player::BasicEmpire")
     assert entry.source_file == xml_file
     assert "Name=BasicEmpire" in entry.normalized_expression
-    assert "Templates=Generic_Space Generic_Land Generic_AI_Default" in (
-        entry.normalized_expression
-    )
+    assert "Templates/Space=Generic_Space" in entry.normalized_expression
+    assert "Templates/Land=Generic_Land" in entry.normalized_expression
+    assert "Templates/Galactic=Generic_AI_Default" in (entry.normalized_expression)
 
 
 def test_parse_players_file_rejects_missing_player_name(tmp_path: Path) -> None:
@@ -181,6 +181,29 @@ def test_parse_templates_file_produces_prefixed_entries(tmp_path: Path) -> None:
     entry = document.require("Template::Basic_Empire_Default")
     assert entry.source_file == xml_file
     assert entry.normalized_expression == "Priority=1\nTrigger=One"
+
+
+def test_parse_templates_file_preserves_nested_tag_paths(tmp_path: Path) -> None:
+    xml_file = tmp_path / "nested_templates.xml"
+    xml_file.write_text(
+        (
+            '<?xml version="1.0"?>\n'
+            "<AITemplates>\n"
+            "  <Basic_Empire_Default>\n"
+            "    <Turn_Off>\n"
+            "      <Goals>Goal_1 Goal_2</Goals>\n"
+            "    </Turn_Off>\n"
+            "  </Basic_Empire_Default>\n"
+            "</AITemplates>\n"
+        ),
+        encoding="utf-8",
+    )
+
+    parser = PerceptualEquationsParser()
+    document = parser.parse_templates_file(xml_file)
+    entry = document.require("Template::Basic_Empire_Default")
+
+    assert "Turn_Off/Goals=Goal_1 Goal_2" in entry.normalized_expression
 
 
 def test_parse_players_and_templates_folders_collect_documents(tmp_path: Path) -> None:

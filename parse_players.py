@@ -6,7 +6,11 @@ from data_models import (
     AITemplateDocument,
     AITemplateEntry,
 )
-from xml_common import parse_named_entries_text_file, parse_single_named_entry_text_file
+from xml_common import (
+    extract_structured_entry_text_with_paths,
+    parse_named_entries_text_file,
+    parse_single_named_entry_text_file,
+)
 
 
 from pathlib import Path
@@ -19,6 +23,7 @@ def parse_players_file(xml_file: str | Path) -> AIPlayerDocument:
         expected_root_tag="AIPlayerType",
         name_prefix="Player::",
         name_tag="Name",
+        entry_text_extractor=extract_structured_entry_text_with_paths,
     )
     return AIPlayerDocument(
         source_file=source_file,
@@ -40,6 +45,7 @@ def parse_templates_file(xml_file: str | Path) -> AITemplateDocument:
         xml_file=xml_file,
         expected_root_tag="AITemplates",
         name_prefix="Template::",
+        entry_text_extractor=extract_structured_entry_text_with_paths,
     )
     return AITemplateDocument(
         source_file=source_file,
