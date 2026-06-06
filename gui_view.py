@@ -43,7 +43,9 @@ class PerceptualEquationsView:
         self.expression_content: ttk.Frame
         self.evaluate_row: ttk.Frame
         self.links_row: ttk.Frame
+        self.links_canvas: tk.Canvas
         self.links_content: ttk.Frame
+        self._links_canvas_window: int
         self._expression_canvas_window: int
         self.variable_value_vars: dict[str, tk.StringVar] = {}
         self._on_function_token_click: Callable[[str], None] | None = None
@@ -149,9 +151,33 @@ class PerceptualEquationsView:
 
         self.links_row = ttk.Frame(right)
         self.links_row.pack(fill=tk.X, pady=(8, 4))
-        ttk.Label(self.links_row, text="Links:").pack(side=tk.LEFT)
-        self.links_content = ttk.Frame(self.links_row)
-        self.links_content.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(8, 0))
+        ttk.Label(self.links_row, text="Links:").pack(side=tk.LEFT, anchor=tk.N)
+
+        links_host = ttk.Frame(self.links_row, relief=tk.SUNKEN, borderwidth=1)
+        links_host.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(8, 0))
+
+        self.links_canvas = tk.Canvas(links_host, height=88, highlightthickness=0)
+        links_scroll = ttk.Scrollbar(
+            links_host,
+            orient=tk.VERTICAL,
+            command=self.links_canvas.yview,
+        )
+        self.links_canvas.configure(yscrollcommand=links_scroll.set)
+
+        self.links_canvas.pack(side=tk.LEFT, fill=tk.X, expand=True)
+        links_scroll.pack(side=tk.RIGHT, fill=tk.Y)
+
+        self.links_content = ttk.Frame(self.links_canvas)
+        self._links_canvas_window = self.links_canvas.create_window(
+            (0, 0), window=self.links_content, anchor="nw"
+        )
+        self.links_content.bind(
+            "<Configure>",
+            lambda _e: self.links_canvas.configure(
+                scrollregion=self.links_canvas.bbox("all")
+            ),
+        )
+        self.links_canvas.bind("<Configure>", self._on_links_canvas_resize)
 
         ttk.Label(right, text="Expression").pack(anchor=tk.W, pady=(8, 4))
 
@@ -246,6 +272,7 @@ class PerceptualEquationsView:
 
         if not links:
             ttk.Label(self.links_content, text="-").pack(anchor="w")
+            self.links_canvas.yview_moveto(0)
             return
 
         for text, target in links:
@@ -262,6 +289,8 @@ class PerceptualEquationsView:
                 "<Button-1>",
                 lambda _e, entry_name=target: self._handle_entry_link_click(entry_name),
             )
+
+        self.links_canvas.yview_moveto(0)
 
     def _set_listbox_items(self, listbox: tk.Listbox, items: list[str]) -> None:
         """Replace all items in a listbox."""
@@ -515,6 +544,10 @@ class PerceptualEquationsView:
         self.expression_canvas.itemconfigure(
             self._expression_canvas_window, width=event.width
         )
+
+    def _on_links_canvas_resize(self, event: tk.Event) -> None:
+        """Keep embedded links frame width synced to canvas width."""
+        self.links_canvas.itemconfigure(self._links_canvas_window, width=event.width)
 
     def _handle_function_click(self, token_key: str) -> None:
         """Notify controller when a function token link is clicked."""
