@@ -343,7 +343,7 @@ class PerceptualEquationsAppDisplayMixin:
     def _build_structured_expression_links(
         self,
         entry_name: str,
-    ) -> dict[tuple[str, str], list[tuple[str, str]]]:
+    ) -> dict[tuple[str, str], list[tuple[str, str | None]]]:
         """Build field-value links for structured entry rendering."""
         entry_type = self._entry_type(entry_name)
         if entry_type == "player":
@@ -355,9 +355,9 @@ class PerceptualEquationsAppDisplayMixin:
     def _build_player_template_field_links(
         self,
         entry_name: str,
-    ) -> dict[tuple[str, str], list[tuple[str, str]]]:
+    ) -> dict[tuple[str, str], list[tuple[str, str | None]]]:
         """Build field-value links from player template fields to templates."""
-        links: dict[tuple[str, str], list[tuple[str, str]]] = {}
+        links: dict[tuple[str, str], list[tuple[str, str | None]]] = {}
         for template_name in self.player_to_templates.get(entry_name, []):
             if self.index is not None and self.index.get(template_name) is None:
                 continue
@@ -375,7 +375,7 @@ class PerceptualEquationsAppDisplayMixin:
     def _build_template_goal_field_links(
         self,
         entry_name: str,
-    ) -> dict[tuple[str, str], list[tuple[str, str]]]:
+    ) -> dict[tuple[str, str], list[tuple[str, str | None]]]:
         """Build field-value links from template goal fields to matching goals."""
         if self.index is None:
             return {}
@@ -384,7 +384,7 @@ class PerceptualEquationsAppDisplayMixin:
         if entry is None:
             return {}
 
-        links: dict[tuple[str, str], list[tuple[str, str]]] = {}
+        links: dict[tuple[str, str], list[tuple[str, str | None]]] = {}
         for line in entry.normalized_expression.splitlines():
             if "=" not in line:
                 continue
@@ -403,7 +403,7 @@ class PerceptualEquationsAppDisplayMixin:
     def _template_goal_field_resolver(
         self,
         field_key: str,
-    ) -> Callable[[str], list[tuple[str, str]]] | None:
+    ) -> Callable[[str], list[tuple[str, str | None]]] | None:
         """Return the resolver for a template goal-list field."""
         leaf_key = field_key.rsplit("/", 1)[-1].lower()
         if leaf_key == "goal_type":
@@ -414,14 +414,14 @@ class PerceptualEquationsAppDisplayMixin:
             return self._resolve_goal_value_links
         return None
 
-    def _resolve_goal_value_links(self, value: str) -> list[tuple[str, str]]:
+    def _resolve_goal_value_links(self, value: str) -> list[tuple[str, str | None]]:
         """Resolve legacy template goal values as a name first, then category."""
         direct_links = self._resolve_goal_name_links(value)
         if direct_links:
             return direct_links
         return self._resolve_goal_category_links(value)
 
-    def _resolve_goal_name_links(self, value: str) -> list[tuple[str, str]]:
+    def _resolve_goal_name_links(self, value: str) -> list[tuple[str, str | None]]:
         """Resolve one template goal-list value as an explicit goal name."""
         if self.index is None:
             return []
@@ -431,12 +431,12 @@ class PerceptualEquationsAppDisplayMixin:
             return [(_goal_display_name(direct_goal_name), direct_goal_name)]
         return []
 
-    def _resolve_goal_category_links(self, value: str) -> list[tuple[str, str]]:
+    def _resolve_goal_category_links(self, value: str) -> list[tuple[str, str | None]]:
         """Resolve one template goal-list value as a goal category."""
         if self.index is None:
             return []
 
-        matching_goals: list[tuple[str, str]] = []
+        matching_goals: list[tuple[str, str | None]] = []
         for goal_name in sorted(self._goal_names(), key=str.lower):
             goal = self.index.get(goal_name)
             if goal is None:
@@ -446,7 +446,9 @@ class PerceptualEquationsAppDisplayMixin:
             if category is not None and category.lower() == value.strip().lower():
                 matching_goals.append((_goal_display_name(goal_name), goal_name))
 
-        return matching_goals
+        if not matching_goals:
+            return []
+        return [(value, None), *matching_goals]
 
     def _goal_names(self) -> list[str]:
         """Return loaded goal entry names."""

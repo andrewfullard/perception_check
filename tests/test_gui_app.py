@@ -289,6 +289,7 @@ def test_build_structured_expression_links_for_template_goal_categories() -> Non
 
     assert links == {
         ("Turn_On/Goals/Category", "Offensive"): [
+            ("Offensive", None),
             ("Conquer_Pirate", "Goal::Conquer_Pirate"),
             ("Raid_Convoy", "Goal::Raid_Convoy"),
         ],
@@ -325,6 +326,7 @@ def test_build_structured_expression_links_for_template_goal_categories_by_plan_
 
     assert links == {
         ("Plans/Goal_Category", "Offensive"): [
+            ("Offensive", None),
             ("Conquer_Pirate", "Goal::Conquer_Pirate")
         ],
     }

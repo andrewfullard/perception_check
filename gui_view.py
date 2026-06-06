@@ -6,7 +6,7 @@ from tkinter import ttk
 from typing import Callable
 
 
-StructuredLinkMap = dict[tuple[str, str], list[tuple[str, str]]]
+StructuredLinkMap = dict[tuple[str, str], list[tuple[str, str | None]]]
 
 
 _EDITABLE_TOKEN_PATTERN = re.compile(
@@ -496,6 +496,20 @@ class PerceptualEquationsView:
             return
 
         for index, (text, target) in enumerate(targets):
+            if target is None:
+                ttk.Label(
+                    parent,
+                    text=text,
+                    font=("TkDefaultFont", 10, "bold"),
+                    justify=tk.LEFT,
+                    anchor="w",
+                ).pack(
+                    anchor="w",
+                    padx=(indent, 0),
+                    pady=(2 if index == 0 else 0, 0),
+                )
+                continue
+
             link = tk.Label(
                 parent,
                 text=text,
