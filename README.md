@@ -1,6 +1,7 @@
 # perception_check
 AI analysis tool for the game Empire at War.
 
+- Put `perception_token_bounds.json` in the same location as the exe. Modify any bounds you like.
 - Choose a top-level mod folder with "Browse"
 - Optionally enter additional layers (relative paths, primarily for EAWX mod dev)
 - Press "Load Stack"
