@@ -39,55 +39,22 @@ from parse_players import (
 class PerceptualEquationsParser:
     """Facade parser coordinating equation and goal parsing components."""
 
-    def parse_file(self, xml_file: str | Path) -> PerceptualEquationDocument:
-        return parse_equations_file(xml_file)
-
-    def parse_goal_functions_file(self, xml_file: str | Path) -> GoalFunctionDocument:
-        return parse_goal_functions_file(xml_file)
-
-    def parse_goals_file(self, xml_file: str | Path) -> GoalDocument:
-        return parse_goals_file(xml_file)
-
-    def parse_players_file(self, xml_file: str | Path) -> AIPlayerDocument:
-        return parse_players_file(xml_file)
-
-    def parse_templates_file(self, xml_file: str | Path) -> AITemplateDocument:
-        return parse_templates_file(xml_file)
-
-    def parse_folder(
-        self, folder: str | Path, pattern: str = "*.xml"
-    ) -> List[PerceptualEquationDocument]:
-        return parse_equations_folder(folder, pattern=pattern)
-
-    def parse_goal_functions_folder(
-        self, folder: str | Path, pattern: str = "*.xml"
-    ) -> List[GoalFunctionDocument]:
-        return parse_goal_functions_folder(folder, pattern=pattern)
-
-    def parse_goals_folder(
-        self, folder: str | Path, pattern: str = "*.xml"
-    ) -> List[GoalDocument]:
-        return parse_goals_folder(folder, pattern=pattern)
-
-    def parse_players_folder(
-        self, folder: str | Path, pattern: str = "*.xml"
-    ) -> List[AIPlayerDocument]:
-        return parse_players_folder(folder, pattern=pattern)
-
-    def parse_templates_folder(
-        self, folder: str | Path, pattern: str = "*.xml"
-    ) -> List[AITemplateDocument]:
-        return parse_templates_folder(folder, pattern=pattern)
-
-    def parse_folder_recursive(
-        self, folder: str | Path, pattern: str = "*.xml"
-    ) -> List[PerceptualEquationDocument]:
-        return parse_equations_folder_recursive(folder, pattern=pattern)
+    parse_file = staticmethod(parse_equations_file)
+    parse_goal_functions_file = staticmethod(parse_goal_functions_file)
+    parse_goals_file = staticmethod(parse_goals_file)
+    parse_players_file = staticmethod(parse_players_file)
+    parse_templates_file = staticmethod(parse_templates_file)
+    parse_folder = staticmethod(parse_equations_folder)
+    parse_goal_functions_folder = staticmethod(parse_goal_functions_folder)
+    parse_goals_folder = staticmethod(parse_goals_folder)
+    parse_players_folder = staticmethod(parse_players_folder)
+    parse_templates_folder = staticmethod(parse_templates_folder)
+    parse_folder_recursive = staticmethod(parse_equations_folder_recursive)
 
     def parse_many(
         self, xml_files: Iterable[str | Path]
     ) -> List[PerceptualEquationDocument]:
-        return [self.parse_file(path) for path in xml_files]
+        return [parse_equations_file(path) for path in xml_files]
 
     def parse_layer(
         self,
@@ -98,9 +65,9 @@ class PerceptualEquationsParser:
     ) -> PerceptualEquationLayer:
         """Parse one logical load layer and validate in-layer uniqueness."""
         if recursive:
-            documents = self.parse_folder_recursive(folder, pattern=pattern)
+            documents = parse_equations_folder_recursive(folder, pattern=pattern)
         else:
-            documents = self.parse_folder(folder, pattern=pattern)
+            documents = parse_equations_folder(folder, pattern=pattern)
 
         layer = PerceptualEquationLayer(name=name, documents=documents)
         self._validate_unique_within_layer(layer)

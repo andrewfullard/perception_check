@@ -1,15 +1,17 @@
 from __future__ import annotations
 
+from functools import partial
 import tkinter as tk
 from tkinter import messagebox
 from typing import Callable
 
 from perceptual_equations_parser import PerceptualEquation
-from gui_app_text_utils import (
-    goal_display_name,
-    player_display_name,
-    template_display_name,
-)
+from gui_app_text_utils import strip_entry_prefix
+
+
+_goal_display_name = partial(strip_entry_prefix, prefix="Goal::")
+_player_display_name = partial(strip_entry_prefix, prefix="Player::")
+_template_display_name = partial(strip_entry_prefix, prefix="Template::")
 
 
 class PerceptualEquationsAppDisplayMixin:
@@ -28,19 +30,19 @@ class PerceptualEquationsAppDisplayMixin:
                 all_names,
                 entry_type="goal",
                 search_text=self.view.goals_search_var.get(),
-                display_name_for=self._goal_display_name,
+                display_name_for=_goal_display_name,
             )
             filtered_player_names = self._filter_hidden_tab_names(
                 all_names,
                 entry_type="player",
                 search_text=self.view.players_search_var.get(),
-                display_name_for=self._player_display_name,
+                display_name_for=_player_display_name,
             )
             filtered_template_names = self._filter_hidden_tab_names(
                 all_names,
                 entry_type="template",
                 search_text=self.view.templates_search_var.get(),
-                display_name_for=self._template_display_name,
+                display_name_for=_template_display_name,
             )
 
             names = [name for name in all_names if self._entry_type(name) == "equation"]
@@ -55,27 +57,30 @@ class PerceptualEquationsAppDisplayMixin:
 
         goal_display_names, self.goal_display_to_entry = self._build_display_name_map(
             filtered_goal_names,
-            self._goal_display_name,
+            _goal_display_name,
         )
-        self.view.set_goal_names(goal_display_names)
+        self.view._set_listbox_items(self.view.goals_listbox, goal_display_names)
 
         (
             player_display_names,
             self.player_display_to_entry,
         ) = self._build_display_name_map(
             filtered_player_names,
-            self._player_display_name,
+            _player_display_name,
         )
-        self.view.set_player_names(player_display_names)
+        self.view._set_listbox_items(self.view.players_listbox, player_display_names)
 
         (
             template_display_names,
             self.template_display_to_entry,
         ) = self._build_display_name_map(
             filtered_template_names,
-            self._template_display_name,
+            _template_display_name,
         )
-        self.view.set_template_names(template_display_names)
+        self.view._set_listbox_items(
+            self.view.templates_listbox,
+            template_display_names,
+        )
 
         if self.filtered_names:
             self.view.names_listbox.selection_set(0)
@@ -215,10 +220,6 @@ class PerceptualEquationsAppDisplayMixin:
         )
         self.view.set_related_links(self._build_related_links(equation.name))
 
-    def _on_related_entry_click(self, entry_name: str) -> None:
-        """Navigate to another loaded entry from a details-panel link."""
-        self._select_entry_by_name(entry_name)
-
     def _format_entry_range(self, entry_name: str) -> str:
         """Return range text for an entry, including goal-linked equation ranges."""
         entry_type = self._entry_type(entry_name)
@@ -303,7 +304,7 @@ class PerceptualEquationsAppDisplayMixin:
             if not goal_function_link:
                 return links
             goal_name, equation_name = goal_function_link
-            links.append((f"Goal: {self._goal_display_name(goal_name)}", goal_name))
+            links.append((f"Goal: {_goal_display_name(goal_name)}", goal_name))
             links.append(
                 (
                     f"Equation: {equation_name} ({self._format_equation_range(equation_name)})",
@@ -318,7 +319,7 @@ class PerceptualEquationsAppDisplayMixin:
                     continue
                 links.append(
                     (
-                        f"Template: {self._template_display_name(template_name)}",
+                        f"Template: {_template_display_name(template_name)}",
                         template_name,
                     )
                 )
@@ -330,7 +331,7 @@ class PerceptualEquationsAppDisplayMixin:
                     continue
                 links.append(
                     (
-                        f"Player: {self._player_display_name(player_name)}",
+                        f"Player: {_player_display_name(player_name)}",
                         player_name,
                     )
                 )
@@ -339,21 +340,9 @@ class PerceptualEquationsAppDisplayMixin:
         for goal_name in self.equation_to_goals.get(entry_name, []):
             if self.index is not None and self.index.get(goal_name) is None:
                 continue
-            links.append((f"Goal: {self._goal_display_name(goal_name)}", goal_name))
+            links.append((f"Goal: {_goal_display_name(goal_name)}", goal_name))
 
         return links
-
-    def _goal_display_name(self, goal_name: str) -> str:
-        """Return UI display name for a goal entry."""
-        return goal_display_name(goal_name)
-
-    def _player_display_name(self, player_name: str) -> str:
-        """Return UI display name for a player entry."""
-        return player_display_name(player_name)
-
-    def _template_display_name(self, template_name: str) -> str:
-        """Return UI display name for a template entry."""
-        return template_display_name(template_name)
 
     def _format_equation_range(self, equation_name: str) -> str:
         """Return display text for equation min/max derived from token bounds."""

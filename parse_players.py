@@ -1,7 +1,7 @@
 from __future__ import annotations
 
+from functools import partial
 from pathlib import Path
-from typing import List
 
 from data_models import (
     AIPlayerDocument,
@@ -62,15 +62,16 @@ def parse_templates_file(xml_file: str | Path) -> AITemplateDocument:
     )
 
 
-def parse_players_folder(
-    folder: str | Path, pattern: str = "*.xml"
-) -> List[AIPlayerDocument]:
-    """Parse all Players XML files in one folder (non-recursive)."""
-    return parse_documents_folder(folder, parse_players_file, pattern=pattern)
+parse_players_folder = partial(
+    parse_documents_folder,
+    parse_document=parse_players_file,
+)
+parse_players_folder.__doc__ = "Parse all Players XML files in one folder (non-recursive)."
 
-
-def parse_templates_folder(
-    folder: str | Path, pattern: str = "*.xml"
-) -> List[AITemplateDocument]:
-    """Parse all Templates XML files in one folder (non-recursive)."""
-    return parse_documents_folder(folder, parse_templates_file, pattern=pattern)
+parse_templates_folder = partial(
+    parse_documents_folder,
+    parse_document=parse_templates_file,
+)
+parse_templates_folder.__doc__ = (
+    "Parse all Templates XML files in one folder (non-recursive)."
+)

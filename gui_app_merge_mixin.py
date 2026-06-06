@@ -15,6 +15,8 @@ from perceptual_equations_parser import (
     PerceptualEquation,
 )
 from perceptual_equations_range import PerceptualEquationRangeAnalyzer
+from parse_goals import parse_goal_functions_folder, parse_goals_folder
+from parse_players import parse_players_folder, parse_templates_folder
 from stack_paths import (
     resolve_stack_layer_content_folders,
     resolve_stack_layer_folders,
@@ -22,10 +24,6 @@ from stack_paths import (
 from gui_app_text_utils import (
     extract_goal_function_link,
     extract_player_template_links,
-    normalize_equation_name,
-    normalize_goal_name,
-    normalize_template_name,
-    parse_structured_fields,
 )
 
 
@@ -81,7 +79,7 @@ class PerceptualEquationsAppMergeMixin:
             require_selected_upper_layers=False,
         )
         for layer_name, goal_functions_folder in goal_function_layers:
-            documents = self.parser.parse_goal_functions_folder(goal_functions_folder)
+            documents = parse_goal_functions_folder(goal_functions_folder)
             self._merge_goal_function_documents(layer_name, documents)
 
         goal_layers = resolve_stack_layer_content_folders(
@@ -92,7 +90,7 @@ class PerceptualEquationsAppMergeMixin:
             require_selected_upper_layers=False,
         )
         for layer_name, goals_folder in goal_layers:
-            documents = self.parser.parse_goals_folder(goals_folder)
+            documents = parse_goals_folder(goals_folder)
             self._merge_goal_documents(layer_name, documents)
 
         player_layers = resolve_stack_layer_content_folders(
@@ -103,7 +101,7 @@ class PerceptualEquationsAppMergeMixin:
             require_selected_upper_layers=False,
         )
         for layer_name, players_folder in player_layers:
-            documents = self.parser.parse_players_folder(players_folder)
+            documents = parse_players_folder(players_folder)
             self._merge_player_documents(layer_name, documents)
 
         template_layers = resolve_stack_layer_content_folders(
@@ -114,7 +112,7 @@ class PerceptualEquationsAppMergeMixin:
             require_selected_upper_layers=False,
         )
         for layer_name, templates_folder in template_layers:
-            documents = self.parser.parse_templates_folder(templates_folder)
+            documents = parse_templates_folder(templates_folder)
             self._merge_template_documents(layer_name, documents)
 
     def _merge_goal_function_documents(
@@ -128,8 +126,9 @@ class PerceptualEquationsAppMergeMixin:
 
         for document in documents:
             for entry in document:
-                link_goal_name, link_equation_name = self._extract_goal_function_link(
-                    entry
+                link_goal_name, link_equation_name = extract_goal_function_link(
+                    entry.normalized_expression,
+                    self._extract_function_name,
                 )
                 if link_goal_name and link_equation_name:
                     self.goal_function_links[entry.name] = (
@@ -172,7 +171,9 @@ class PerceptualEquationsAppMergeMixin:
 
         for document in documents:
             for entry in document:
-                for template_name in self._extract_player_template_links(entry):
+                for template_name in extract_player_template_links(
+                    entry.normalized_expression
+                ):
                     self._append_unique(
                         self.player_to_templates,
                         entry.name,
@@ -225,35 +226,6 @@ class PerceptualEquationsAppMergeMixin:
             self.entry_types[equation.name] = "player"
         else:
             self.entry_types[equation.name] = "template"
-
-    def _extract_player_template_links(self, entry: AIPlayerEntry) -> list[str]:
-        """Extract Template::* references from one Player::* entry text."""
-        return extract_player_template_links(entry.normalized_expression)
-
-    def _normalize_template_name(self, template_text: str | None) -> str | None:
-        """Convert a template reference into canonical Template::* form."""
-        return normalize_template_name(template_text)
-
-    def _extract_goal_function_link(
-        self, entry: GoalFunctionEntry
-    ) -> tuple[str | None, str | None]:
-        """Extract normalized Goal::* and equation names from GoalFunction text."""
-        return extract_goal_function_link(
-            entry.normalized_expression,
-            self._extract_function_name,
-        )
-
-    def _parse_structured_fields(self, text: str) -> dict[str, str]:
-        """Parse normalized key=value lines into a lowercase-key dictionary."""
-        return parse_structured_fields(text)
-
-    def _normalize_goal_name(self, goal_text: str | None) -> str | None:
-        """Convert GoalFunction Goal field text into canonical Goal::* form."""
-        return normalize_goal_name(goal_text)
-
-    def _normalize_equation_name(self, function_text: str | None) -> str | None:
-        """Convert GoalFunction Function field text into canonical equation name."""
-        return normalize_equation_name(function_text, self._extract_function_name)
 
     def _append_unique(
         self,

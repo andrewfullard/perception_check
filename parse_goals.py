@@ -1,7 +1,7 @@
 from __future__ import annotations
 
+from functools import partial
 from pathlib import Path
-from typing import List
 
 from data_models import (
     GoalDocument,
@@ -57,15 +57,16 @@ def parse_goals_file(xml_file: str | Path) -> GoalDocument:
     )
 
 
-def parse_goal_functions_folder(
-    folder: str | Path, pattern: str = "*.xml"
-) -> List[GoalFunctionDocument]:
-    """Parse all GoalFunctions XML files in one folder (non-recursive)."""
-    return parse_documents_folder(folder, parse_goal_functions_file, pattern=pattern)
+parse_goal_functions_folder = partial(
+    parse_documents_folder,
+    parse_document=parse_goal_functions_file,
+)
+parse_goal_functions_folder.__doc__ = (
+    "Parse all GoalFunctions XML files in one folder (non-recursive)."
+)
 
-
-def parse_goals_folder(
-    folder: str | Path, pattern: str = "*.xml"
-) -> List[GoalDocument]:
-    """Parse all Goals XML files in one folder (non-recursive)."""
-    return parse_documents_folder(folder, parse_goals_file, pattern=pattern)
+parse_goals_folder = partial(
+    parse_documents_folder,
+    parse_document=parse_goals_file,
+)
+parse_goals_folder.__doc__ = "Parse all Goals XML files in one folder (non-recursive)."

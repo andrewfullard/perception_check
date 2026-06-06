@@ -52,7 +52,7 @@ class PerceptualEquationsApp(
             on_template_selection_changed=self._on_template_selection_changed,
             on_evaluate=self._evaluate_expression,
             on_function_token_click=self._on_function_token_click,
-            on_entry_link_click=self._on_related_entry_click,
+            on_entry_link_click=self._select_entry_by_name,
         )
 
     def _load_token_bounds_config(self) -> None:

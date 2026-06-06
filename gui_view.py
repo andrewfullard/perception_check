@@ -263,18 +263,6 @@ class PerceptualEquationsView:
                 lambda _e, entry_name=target: self._handle_entry_link_click(entry_name),
             )
 
-    def set_goal_names(self, goal_names: list[str]) -> None:
-        """Render loaded AI goal names in the goals tab."""
-        self._set_listbox_items(self.goals_listbox, goal_names)
-
-    def set_player_names(self, player_names: list[str]) -> None:
-        """Render loaded AI player names in the players tab."""
-        self._set_listbox_items(self.players_listbox, player_names)
-
-    def set_template_names(self, template_names: list[str]) -> None:
-        """Render loaded AI template names in the templates tab."""
-        self._set_listbox_items(self.templates_listbox, template_names)
-
     def _set_listbox_items(self, listbox: tk.Listbox, items: list[str]) -> None:
         """Replace all items in a listbox."""
         listbox.delete(0, tk.END)

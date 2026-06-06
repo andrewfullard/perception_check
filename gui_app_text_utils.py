@@ -97,22 +97,7 @@ def extract_player_template_links(normalized_expression: str) -> list[str]:
     return templates
 
 
-def goal_display_name(goal_name: str) -> str:
-    """Return UI display name for a goal entry."""
-    return _strip_entry_prefix(goal_name, "Goal::")
-
-
-def player_display_name(player_name: str) -> str:
-    """Return UI display name for a player entry."""
-    return _strip_entry_prefix(player_name, "Player::")
-
-
-def template_display_name(template_name: str) -> str:
-    """Return UI display name for a template entry."""
-    return _strip_entry_prefix(template_name, "Template::")
-
-
-def _strip_entry_prefix(entry_name: str, prefix: str) -> str:
+def strip_entry_prefix(entry_name: str, prefix: str) -> str:
     """Return entry name without the given prefix when present."""
     if entry_name.startswith(prefix):
         return entry_name[len(prefix) :]

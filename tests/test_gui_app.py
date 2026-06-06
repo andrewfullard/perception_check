@@ -6,6 +6,11 @@ from tkinter import messagebox
 
 from gui_app import PerceptualEquationsApp
 from data_models import GoalFunctionEntry
+from gui_app_text_utils import (
+    extract_goal_function_link,
+    extract_player_template_links,
+    strip_entry_prefix,
+)
 from perceptual_equations_parser import PerceptualEquationsParser
 from perceptual_equations_range import NumericRange
 
@@ -77,7 +82,10 @@ def test_extract_goal_function_link_normalizes_goal_and_function_names() -> None
         source_file=None,
     )
 
-    goal_name, equation_name = app._extract_goal_function_link(entry)
+    goal_name, equation_name = extract_goal_function_link(
+        entry.normalized_expression,
+        app._extract_function_name,
+    )
 
     assert goal_name == "Goal::Conquer"
     assert equation_name == "Strength_Check"
@@ -135,7 +143,7 @@ def test_extract_player_template_links_reads_templates_fields() -> None:
         )
     )
 
-    links = app._extract_player_template_links(entry)
+    links = extract_player_template_links(entry.normalized_expression)
 
     assert links == [
         "Template::Generic_Space",
@@ -153,7 +161,7 @@ def test_extract_player_template_links_splits_multi_template_field_values() -> N
         )
     )
 
-    links = app._extract_player_template_links(entry)
+    links = extract_player_template_links(entry.normalized_expression)
 
     assert links == [
         "Template::Generic_AI_Isolationist",
@@ -547,27 +555,21 @@ def test_on_template_selection_changed_resolves_display_name_without_prefix() ->
 
 
 def test_goal_display_name_strips_goal_prefix() -> None:
-    app = _app_without_tk()
-
-    assert app._goal_display_name("Goal::Conquer") == "Conquer"
-    assert app._goal_display_name("NoPrefix") == "NoPrefix"
+    assert strip_entry_prefix("Goal::Conquer", "Goal::") == "Conquer"
+    assert strip_entry_prefix("NoPrefix", "Goal::") == "NoPrefix"
 
 
 def test_player_display_name_strips_player_prefix() -> None:
-    app = _app_without_tk()
-
-    assert app._player_display_name("Player::BasicEmpire") == "BasicEmpire"
-    assert app._player_display_name("NoPrefix") == "NoPrefix"
+    assert strip_entry_prefix("Player::BasicEmpire", "Player::") == "BasicEmpire"
+    assert strip_entry_prefix("NoPrefix", "Player::") == "NoPrefix"
 
 
 def test_template_display_name_strips_template_prefix() -> None:
-    app = _app_without_tk()
-
     assert (
-        app._template_display_name("Template::Basic_Empire_Default")
+        strip_entry_prefix("Template::Basic_Empire_Default", "Template::")
         == "Basic_Empire_Default"
     )
-    assert app._template_display_name("NoPrefix") == "NoPrefix"
+    assert strip_entry_prefix("NoPrefix", "Template::") == "NoPrefix"
 
 
 def test_merge_non_equation_data_reads_players_templates_with_stack_order(

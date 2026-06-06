@@ -15,7 +15,13 @@ class PerceptualEquationsAppEvalMixin:
         """Compute a result from current variable inputs and displayed operators."""
         try:
             expression = self._normalize_expression_for_eval(
-                self.view.build_evaluable_expression(self._resolve_token_value_for_eval)
+                self.view.build_evaluable_expression(
+                    lambda token_key, raw_value: clamp_token_value(
+                        token_key,
+                        raw_value,
+                        self.token_bounds,
+                    )
+                )
             )
             if not expression:
                 self.view.result_var.set("-")
@@ -98,10 +104,6 @@ class PerceptualEquationsAppEvalMixin:
 
         function_ref = function_ref.strip()
         return function_ref or None
-
-    def _resolve_token_value_for_eval(self, token_key: str, raw_value: str) -> str:
-        """Translate token input into a numeric expression segment for evaluation."""
-        return clamp_token_value(token_key, raw_value, self.token_bounds)
 
     def _normalize_expression_for_eval(self, expression: str) -> str:
         """Normalize and translate game syntax into Python-evaluable expression text."""
