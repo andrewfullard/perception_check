@@ -508,7 +508,8 @@ class PerceptualEquationsAppDisplayMixin:
         for template_name in self.player_to_templates.get(player_name, []):
             if not self._entry_exists(template_name):
                 continue
-            self._add_template_graph(graph, template_name)
+            game_modes = self.player_template_modes.get((player_name, template_name))
+            self._add_template_graph(graph, template_name, game_modes=game_modes)
             graph.add_edge("player", player_name, "template", template_name)
 
     def _add_template_graph(
@@ -516,6 +517,7 @@ class PerceptualEquationsAppDisplayMixin:
         graph,
         template_name: str,
         include_goal_edges: bool = True,
+        game_modes: list[str] | None = None,
     ) -> None:
         """Add a template plus goals referenced by it."""
         if not self._entry_exists(template_name):
@@ -523,7 +525,7 @@ class PerceptualEquationsAppDisplayMixin:
         graph.add_entry("template", template_name, _template_display_name)
         if not include_goal_edges:
             return
-        for goal_name in self._template_goal_names(template_name):
+        for goal_name in self._template_goal_names(template_name, game_modes):
             if not self._entry_exists(goal_name):
                 continue
             graph.add_entry("goal", goal_name, _goal_display_name)
@@ -544,7 +546,11 @@ class PerceptualEquationsAppDisplayMixin:
         if self._entry_exists(equation_name):
             graph.add_entry("equation", equation_name, lambda name: name)
 
-    def _template_goal_names(self, template_name: str) -> list[str]:
+    def _template_goal_names(
+        self,
+        template_name: str,
+        game_modes: list[str] | None = None,
+    ) -> list[str]:
         """Return concrete goal names referenced by one template."""
         if self.index is None:
             return []
@@ -563,10 +569,36 @@ class PerceptualEquationsAppDisplayMixin:
                 continue
             for value in self._split_structured_value(field_value):
                 for _text, target in resolver(value):
-                    if target is not None and target not in goal_names:
-                        goal_names.append(target)
+                    if target is None or target in goal_names:
+                        continue
+                    if not self._goal_matches_game_modes(target, game_modes):
+                        continue
+                    goal_names.append(target)
 
         return goal_names
+
+    def _goal_matches_game_modes(
+        self,
+        goal_name: str,
+        game_modes: list[str] | None,
+    ) -> bool:
+        """Return whether a goal matches the player template mode filter."""
+        if not game_modes:
+            return True
+        fields = self._goal_fields(goal_name)
+        game_mode = fields.get("gamemode")
+        if game_mode is None:
+            return False
+        return game_mode.lower() in {mode.lower() for mode in game_modes}
+
+    def _goal_fields(self, goal_name: str) -> dict[str, str]:
+        """Return parsed structured fields for one loaded goal."""
+        if self.index is None:
+            return {}
+        goal = self.index.get(goal_name)
+        if goal is None:
+            return {}
+        return parse_structured_fields(goal.normalized_expression)
 
     def _templates_for_goal(self, goal_name: str) -> list[str]:
         """Return loaded templates that reference one goal directly or by category."""
@@ -650,10 +682,7 @@ class PerceptualEquationsAppDisplayMixin:
 
         matching_goals: list[tuple[str, str | None]] = []
         for goal_name in sorted(self._goal_names(), key=str.lower):
-            goal = self.index.get(goal_name)
-            if goal is None:
-                continue
-            fields = parse_structured_fields(goal.normalized_expression)
+            fields = self._goal_fields(goal_name)
             category = fields.get("category")
             if category is not None and category.lower() == value.strip().lower():
                 matching_goals.append((_goal_display_name(goal_name), goal_name))

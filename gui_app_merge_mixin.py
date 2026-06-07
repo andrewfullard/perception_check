@@ -43,6 +43,7 @@ class PerceptualEquationsAppMergeMixin:
             self.goal_to_equations = {}
             self.equation_to_goals = {}
             self.player_to_templates = {}
+            self.player_template_modes = {}
             self.template_to_players = {}
             self.goal_function_links = {}
             self.entry_types = {
@@ -171,7 +172,7 @@ class PerceptualEquationsAppMergeMixin:
 
         for document in documents:
             for entry in document:
-                for template_name in extract_player_template_links(
+                for template_name, game_mode in self._extract_player_template_modes(
                     entry.normalized_expression
                 ):
                     self._append_unique(
@@ -183,6 +184,11 @@ class PerceptualEquationsAppMergeMixin:
                         self.template_to_players,
                         template_name,
                         entry.name,
+                    )
+                    self._append_unique(
+                        self.player_template_modes,
+                        (entry.name, template_name),
+                        game_mode,
                     )
                 self._merge_non_equation_entry(layer_name, entry)
 
@@ -229,14 +235,35 @@ class PerceptualEquationsAppMergeMixin:
 
     def _append_unique(
         self,
-        mapping: dict[str, list[str]],
-        key: str,
+        mapping,
+        key,
         value: str,
     ) -> None:
         """Append to list-valued mapping while preserving first-seen order."""
         items = mapping.setdefault(key, [])
         if value not in items:
             items.append(value)
+
+    def _extract_player_template_modes(
+        self,
+        normalized_expression: str,
+    ) -> list[tuple[str, str]]:
+        """Extract Template::* references with their player template mode."""
+        template_modes: list[tuple[str, str]] = []
+        for line in normalized_expression.splitlines():
+            if "=" not in line:
+                continue
+            field_key, field_value = line.split("=", 1)
+            field_key = field_key.strip()
+            key_parts = [part for part in field_key.split("/") if part]
+            if len(key_parts) < 2 or key_parts[0].lower() != "templates":
+                continue
+            game_mode = key_parts[-1].strip()
+            if not game_mode:
+                continue
+            for template_name in extract_player_template_links(line):
+                template_modes.append((template_name, game_mode))
+        return template_modes
 
     def _entry_type(self, entry_name: str) -> str:
         """Return entry type metadata used by list, links, and evaluation UI."""

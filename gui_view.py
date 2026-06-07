@@ -120,10 +120,10 @@ class PerceptualEquationsView:
         goals_tab = ttk.Frame(left_tabs)
         players_tab = ttk.Frame(left_tabs)
         templates_tab = ttk.Frame(left_tabs)
-        left_tabs.add(entries_tab, text="Equations")
-        left_tabs.add(goals_tab, text="AI Goals")
         left_tabs.add(players_tab, text="AI Players")
         left_tabs.add(templates_tab, text="AI Templates")
+        left_tabs.add(goals_tab, text="AI Goals")
+        left_tabs.add(entries_tab, text="Equations")
 
         self.names_listbox = self._build_search_list_tab(entries_tab, self.search_var)
         self.goals_listbox = self._build_search_list_tab(
