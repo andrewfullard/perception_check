@@ -20,6 +20,7 @@ def _app_without_tk() -> PerceptualEquationsApp:
     app.goal_to_equations = {}
     app.equation_to_goals = {}
     app.player_to_templates = {}
+    app.player_template_modes = {}
     app.template_to_players = {}
     app.goal_function_links = {}
     app.index = None
@@ -387,6 +388,51 @@ def test_build_relationship_graph_for_template_neighborhood() -> None:
     assert edges == [
         ("template:Template::Basic", "goal:Goal::Conquer_Pirate"),
         ("goal:Goal::Conquer_Pirate", "equation:Eq_A"),
+        ("player:Player::BasicEmpire", "template:Template::Basic"),
+    ]
+
+
+def test_build_relationship_graph_for_player_filters_template_goals_by_game_mode() -> None:
+    app = _app_without_tk()
+    app.entry_types = {
+        "Player::BasicEmpire": "player",
+        "Template::Basic": "template",
+        "Goal::Space_Attack": "goal",
+        "Goal::Land_Attack": "goal",
+    }
+    app.player_to_templates = {"Player::BasicEmpire": ["Template::Basic"]}
+    app.player_template_modes = {
+        ("Player::BasicEmpire", "Template::Basic"): ["Space"],
+    }
+    entries = {
+        "Player::BasicEmpire": SimpleNamespace(normalized_expression=""),
+        "Template::Basic": SimpleNamespace(
+            normalized_expression="Turn_On/Goals/Category=Offensive"
+        ),
+        "Goal::Space_Attack": SimpleNamespace(
+            normalized_expression="GameMode=Space\nCategory=Offensive"
+        ),
+        "Goal::Land_Attack": SimpleNamespace(
+            normalized_expression="GameMode=Land\nCategory=Offensive"
+        ),
+    }
+    app.index = SimpleNamespace(
+        get=lambda name: entries.get(name),
+        effective_equations=entries,
+    )
+
+    columns, edges = app._build_relationship_graph("Player::BasicEmpire")
+
+    assert columns == [
+        (
+            "AI Players",
+            [("player:Player::BasicEmpire", "BasicEmpire", "Player::BasicEmpire")],
+        ),
+        ("AI Templates", [("template:Template::Basic", "Basic", "Template::Basic")]),
+        ("AI Goals", [("goal:Goal::Space_Attack", "Space_Attack", "Goal::Space_Attack")]),
+    ]
+    assert edges == [
+        ("template:Template::Basic", "goal:Goal::Space_Attack"),
         ("player:Player::BasicEmpire", "template:Template::Basic"),
     ]
 
@@ -801,6 +847,9 @@ def test_merge_non_equation_data_reads_players_templates_with_stack_order(
     assert app.player_to_templates["Player::BasicEmpire"] == [
         "Template::Basic_Empire_Default"
     ]
+    assert app.player_template_modes[
+        ("Player::BasicEmpire", "Template::Basic_Empire_Default")
+    ] == ["Galactic"]
     assert app.template_to_players["Template::Basic_Empire_Default"] == [
         "Player::BasicEmpire"
     ]
