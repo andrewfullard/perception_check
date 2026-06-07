@@ -535,6 +535,8 @@ class PerceptualEquationsAppDisplayMixin:
         for goal_name in self._template_goal_names(template_name, game_modes):
             if not self._entry_exists(goal_name):
                 continue
+            if not self._goal_matches_function_sets(goal_name, goal_function_sets):
+                continue
             graph.add_entry("goal", goal_name, _goal_display_name)
             graph.add_edge("template", template_name, "goal", goal_name)
             self._add_goal_graph(graph, goal_name, goal_function_sets)
@@ -563,13 +565,28 @@ class PerceptualEquationsAppDisplayMixin:
         if not goal_function_sets:
             return equation_names
 
-        allowed_sets = {goal_function_set.lower() for goal_function_set in goal_function_sets}
+        allowed_sets = {
+            goal_function_set.lower() for goal_function_set in goal_function_sets
+        }
         filtered_equations: list[str] = []
         for equation_name in equation_names:
-            edge_sets = self.goal_equation_function_sets.get((goal_name, equation_name), [])
+            edge_sets = self.goal_equation_function_sets.get(
+                (goal_name, equation_name),
+                [],
+            )
             if any(edge_set.lower() in allowed_sets for edge_set in edge_sets):
                 filtered_equations.append(equation_name)
         return filtered_equations
+
+    def _goal_matches_function_sets(
+        self,
+        goal_name: str,
+        goal_function_sets: list[str] | None,
+    ) -> bool:
+        """Return whether a goal has a valid equation for the function set filter."""
+        if not goal_function_sets:
+            return True
+        return bool(self._goal_equation_names(goal_name, goal_function_sets))
 
     def _add_equation_graph_node(self, graph, equation_name: str) -> None:
         """Add one equation node if loaded."""

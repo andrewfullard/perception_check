@@ -400,19 +400,25 @@ def test_build_relationship_graph_for_player_filters_template_goals_by_game_mode
         "Player::BasicEmpire": "player",
         "Template::Basic": "template",
         "Goal::Space_Attack": "goal",
+        "Goal::Space_Defend": "goal",
         "Goal::Land_Attack": "goal",
         "Eq_Space_A": "equation",
         "Eq_Space_B": "equation",
+        "Eq_Space_C": "equation",
     }
     app.player_to_templates = {"Player::BasicEmpire": ["Template::Basic"]}
     app.player_template_modes = {
         ("Player::BasicEmpire", "Template::Basic"): ["Space"],
     }
     app.player_goal_function_sets = {"Player::BasicEmpire": ["space_set_a"]}
-    app.goal_to_equations = {"Goal::Space_Attack": ["Eq_Space_A", "Eq_Space_B"]}
+    app.goal_to_equations = {
+        "Goal::Space_Attack": ["Eq_Space_A", "Eq_Space_B"],
+        "Goal::Space_Defend": ["Eq_Space_C"],
+    }
     app.goal_equation_function_sets = {
         ("Goal::Space_Attack", "Eq_Space_A"): ["space_set_a"],
         ("Goal::Space_Attack", "Eq_Space_B"): ["space_set_b"],
+        ("Goal::Space_Defend", "Eq_Space_C"): ["space_set_b"],
     }
     entries = {
         "Player::BasicEmpire": SimpleNamespace(normalized_expression=""),
@@ -422,11 +428,15 @@ def test_build_relationship_graph_for_player_filters_template_goals_by_game_mode
         "Goal::Space_Attack": SimpleNamespace(
             normalized_expression="GameMode=Space\nCategory=Offensive"
         ),
+        "Goal::Space_Defend": SimpleNamespace(
+            normalized_expression="GameMode=Space\nCategory=Offensive"
+        ),
         "Goal::Land_Attack": SimpleNamespace(
             normalized_expression="GameMode=Land\nCategory=Offensive"
         ),
         "Eq_Space_A": SimpleNamespace(normalized_expression=""),
         "Eq_Space_B": SimpleNamespace(normalized_expression=""),
+        "Eq_Space_C": SimpleNamespace(normalized_expression=""),
     }
     app.index = SimpleNamespace(
         get=lambda name: entries.get(name),
