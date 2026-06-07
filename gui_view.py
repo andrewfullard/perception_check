@@ -7,6 +7,8 @@ from typing import Callable
 
 
 StructuredLinkMap = dict[tuple[str, str], list[tuple[str, str | None]]]
+GraphColumns = list[tuple[str, list[tuple[str, str, str | None]]]]
+GraphEdges = list[tuple[str, str]]
 
 
 _EDITABLE_TOKEN_PATTERN = re.compile(
@@ -44,7 +46,9 @@ class PerceptualEquationsView:
         self.templates_listbox: tk.Listbox
         self.expression_canvas: tk.Canvas
         self.expression_content: ttk.Frame
+        self.graph_canvas: tk.Canvas
         self.evaluate_row: ttk.Frame
+        self.detail_tabs: ttk.Notebook
         self.links_row: ttk.Frame
         self.links_canvas: tk.Canvas
         self.links_content: ttk.Frame
@@ -182,16 +186,24 @@ class PerceptualEquationsView:
         )
         self.links_canvas.bind("<Configure>", self._on_links_canvas_resize)
 
-        ttk.Label(right, text="Expression").pack(anchor=tk.W, pady=(8, 4))
+        self.detail_tabs = ttk.Notebook(right)
+        self.detail_tabs.pack(fill=tk.BOTH, expand=True, pady=(8, 0))
 
-        self.evaluate_row = ttk.Frame(right)
+        expression_tab = ttk.Frame(self.detail_tabs, padding=(0, 8, 0, 0))
+        graph_tab = ttk.Frame(self.detail_tabs, padding=(0, 8, 0, 0))
+        self.detail_tabs.add(expression_tab, text="Expression")
+        self.detail_tabs.add(graph_tab, text="Graph")
+
+        ttk.Label(expression_tab, text="Expression").pack(anchor=tk.W, pady=(0, 4))
+
+        self.evaluate_row = ttk.Frame(expression_tab)
         self.evaluate_row.pack(fill=tk.X, pady=(0, 6))
         self.evaluate_button = ttk.Button(self.evaluate_row, text="Evaluate")
         self.evaluate_button.pack(side=tk.LEFT)
         ttk.Label(self.evaluate_row, text="Result:").pack(side=tk.LEFT, padx=(12, 4))
         ttk.Label(self.evaluate_row, textvariable=self.result_var).pack(side=tk.LEFT)
 
-        expression_host = ttk.Frame(right)
+        expression_host = ttk.Frame(expression_tab)
         expression_host.pack(fill=tk.BOTH, expand=True)
 
         self.expression_canvas = tk.Canvas(expression_host, highlightthickness=0)
@@ -215,6 +227,27 @@ class PerceptualEquationsView:
             ),
         )
         self.expression_canvas.bind("<Configure>", self._on_expression_canvas_resize)
+
+        graph_host = ttk.Frame(graph_tab)
+        graph_host.pack(fill=tk.BOTH, expand=True)
+
+        self.graph_canvas = tk.Canvas(graph_host, highlightthickness=0, bg="white")
+        graph_scroll_y = ttk.Scrollbar(
+            graph_host, orient=tk.VERTICAL, command=self.graph_canvas.yview
+        )
+        graph_scroll_x = ttk.Scrollbar(
+            graph_host, orient=tk.HORIZONTAL, command=self.graph_canvas.xview
+        )
+        self.graph_canvas.configure(
+            yscrollcommand=graph_scroll_y.set,
+            xscrollcommand=graph_scroll_x.set,
+        )
+
+        self.graph_canvas.grid(row=0, column=0, sticky="nsew")
+        graph_scroll_y.grid(row=0, column=1, sticky="ns")
+        graph_scroll_x.grid(row=1, column=0, sticky="ew")
+        graph_host.rowconfigure(0, weight=1)
+        graph_host.columnconfigure(0, weight=1)
 
     def _build_search_list_tab(
         self,
@@ -294,6 +327,113 @@ class PerceptualEquationsView:
             )
 
         self.links_canvas.yview_moveto(0)
+
+    def set_relationship_graph(
+        self,
+        columns: GraphColumns,
+        edges: GraphEdges,
+    ) -> None:
+        """Render a small relationship graph with fixed columns."""
+        self.graph_canvas.delete("all")
+
+        if not columns:
+            self.graph_canvas.create_text(
+                24,
+                24,
+                text="-",
+                anchor="nw",
+                fill="#555",
+            )
+            self.graph_canvas.configure(scrollregion=(0, 0, 300, 160))
+            return
+
+        column_width = 220
+        node_width = 160
+        node_height = 46
+        header_y = 24
+        first_node_y = 72
+        row_gap = 28
+        left_margin = 28
+        node_positions: dict[str, tuple[int, int, int, int]] = {}
+
+        for column_index, (title, nodes) in enumerate(columns):
+            x = left_margin + (column_index * column_width)
+            self.graph_canvas.create_text(
+                x,
+                header_y,
+                text=title,
+                anchor="nw",
+                font=("TkDefaultFont", 10, "bold"),
+                fill="#333",
+            )
+            for row_index, (node_id, _label, _target) in enumerate(nodes):
+                y = first_node_y + (row_index * (node_height + row_gap))
+                node_positions[node_id] = (x, y, x + node_width, y + node_height)
+
+        for source_id, target_id in edges:
+            source_box = node_positions.get(source_id)
+            target_box = node_positions.get(target_id)
+            if source_box is None or target_box is None:
+                continue
+            x1, y1 = source_box[2], (source_box[1] + source_box[3]) // 2
+            x2, y2 = target_box[0], (target_box[1] + target_box[3]) // 2
+            self.graph_canvas.create_line(
+                x1,
+                y1,
+                x2,
+                y2,
+                arrow=tk.LAST,
+                fill="#777",
+                width=1,
+            )
+
+        for _column_title, nodes in columns:
+            for node_id, label, target in nodes:
+                x1, y1, x2, y2 = node_positions[node_id]
+                tags = (f"graph_node:{node_id}",)
+                self.graph_canvas.create_rectangle(
+                    x1,
+                    y1,
+                    x2,
+                    y2,
+                    fill="#f8f9fb",
+                    outline="#9aa0a6",
+                    tags=tags,
+                )
+                self.graph_canvas.create_text(
+                    (x1 + x2) // 2,
+                    (y1 + y2) // 2,
+                    text=label,
+                    width=node_width - 16,
+                    justify=tk.CENTER,
+                    fill="#1a73e8" if target is not None else "#333",
+                    tags=tags,
+                )
+                if target is not None:
+                    self.graph_canvas.tag_bind(
+                        f"graph_node:{node_id}",
+                        "<Button-1>",
+                        lambda _e, entry_name=target: self._handle_entry_link_click(
+                            entry_name
+                        ),
+                    )
+                    self.graph_canvas.tag_bind(
+                        f"graph_node:{node_id}",
+                        "<Enter>",
+                        lambda _e: self.graph_canvas.configure(cursor="hand2"),
+                    )
+                    self.graph_canvas.tag_bind(
+                        f"graph_node:{node_id}",
+                        "<Leave>",
+                        lambda _e: self.graph_canvas.configure(cursor=""),
+                    )
+
+        max_rows = max((len(nodes) for _title, nodes in columns), default=1)
+        width = left_margin + (len(columns) * column_width)
+        height = first_node_y + (max_rows * (node_height + row_gap)) + 24
+        self.graph_canvas.configure(scrollregion=(0, 0, width, height))
+        self.graph_canvas.xview_moveto(0)
+        self.graph_canvas.yview_moveto(0)
 
     def _set_listbox_items(self, listbox: tk.Listbox, items: list[str]) -> None:
         """Replace all items in a listbox."""

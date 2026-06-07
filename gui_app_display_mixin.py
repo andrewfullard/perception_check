@@ -18,6 +18,74 @@ _player_display_name = partial(strip_entry_prefix, prefix="Player::")
 _template_display_name = partial(strip_entry_prefix, prefix="Template::")
 
 
+class _RelationshipGraphBuilder:
+    """Collect graph nodes and edges in fixed display lanes."""
+
+    _COLUMN_ORDER = ("player", "template", "goal", "equation")
+    _COLUMN_TITLES = {
+        "player": "AI Players",
+        "template": "AI Templates",
+        "goal": "AI Goals",
+        "equation": "Equations",
+    }
+
+    def __init__(self) -> None:
+        self.nodes: dict[str, list[tuple[str, str, str | None]]] = {
+            column: [] for column in self._COLUMN_ORDER
+        }
+        self.node_ids: set[str] = set()
+        self.edges: list[tuple[str, str]] = []
+        self.edge_ids: set[tuple[str, str]] = set()
+
+    def add_entry(
+        self,
+        column: str,
+        entry_name: str,
+        label_for,
+    ) -> None:
+        """Add one clickable entry node."""
+        node_id = self.node_id(column, entry_name)
+        if node_id in self.node_ids:
+            return
+        self.node_ids.add(node_id)
+        self.nodes[column].append((node_id, label_for(entry_name), entry_name))
+
+    def add_edge(
+        self,
+        source_column: str,
+        source_name: str,
+        target_column: str,
+        target_name: str,
+    ) -> None:
+        """Add one directed edge between entry nodes."""
+        edge = (
+            self.node_id(source_column, source_name),
+            self.node_id(target_column, target_name),
+        )
+        if edge in self.edge_ids:
+            return
+        self.edge_ids.add(edge)
+        self.edges.append(edge)
+
+    def to_view_data(
+        self,
+    ) -> tuple[
+        list[tuple[str, list[tuple[str, str, str | None]]]],
+        list[tuple[str, str]],
+    ]:
+        """Return non-empty graph columns and edges for the view."""
+        columns = [
+            (self._COLUMN_TITLES[column], self.nodes[column])
+            for column in self._COLUMN_ORDER
+            if self.nodes[column]
+        ]
+        return columns, self.edges
+
+    def node_id(self, column: str, entry_name: str) -> str:
+        """Return stable graph node ID for one lane entry."""
+        return f"{column}:{entry_name}"
+
+
 class PerceptualEquationsAppDisplayMixin:
     """UI list refresh, selection handlers, and related-link rendering."""
 
@@ -207,6 +275,7 @@ class PerceptualEquationsAppDisplayMixin:
             self.view.result_var.set("-")
             self.view.set_expression_text("")
             self.view.set_related_links([])
+            self.view.set_relationship_graph([], [])
             return
 
         self.view.set_evaluation_controls_visible(
@@ -224,6 +293,8 @@ class PerceptualEquationsAppDisplayMixin:
             structured_links=self._build_structured_expression_links(equation.name),
         )
         self.view.set_related_links(self._build_related_links(equation.name))
+        graph_columns, graph_edges = self._build_relationship_graph(equation.name)
+        self.view.set_relationship_graph(graph_columns, graph_edges)
 
     def _format_entry_range(self, entry_name: str) -> str:
         """Return range text for an entry, including goal-linked equation ranges."""
@@ -371,6 +442,147 @@ class PerceptualEquationsAppDisplayMixin:
                 links[(field_key, display_name)] = link
                 links[(field_key, template_name)] = link
         return links
+
+    def _build_relationship_graph(
+        self,
+        entry_name: str,
+    ) -> tuple[
+        list[tuple[str, list[tuple[str, str, str | None]]]],
+        list[tuple[str, str]],
+    ]:
+        """Build a small lane-based graph around one selected entry."""
+        graph = _RelationshipGraphBuilder()
+        entry_type = self._entry_type(entry_name)
+
+        if entry_type == "player":
+            self._add_player_graph(graph, entry_name)
+        elif entry_type == "template":
+            self._add_template_graph(graph, entry_name)
+            for player_name in self.template_to_players.get(entry_name, []):
+                if self._entry_exists(player_name):
+                    graph.add_entry("player", player_name, _player_display_name)
+                    graph.add_edge("player", player_name, "template", entry_name)
+        elif entry_type == "goal":
+            self._add_goal_graph(graph, entry_name)
+            for template_name in self._templates_for_goal(entry_name):
+                self._add_template_graph(graph, template_name, include_goal_edges=False)
+                graph.add_edge("template", template_name, "goal", entry_name)
+                for player_name in self.template_to_players.get(template_name, []):
+                    if self._entry_exists(player_name):
+                        graph.add_entry("player", player_name, _player_display_name)
+                        graph.add_edge("player", player_name, "template", template_name)
+        elif entry_type == "goal_function":
+            goal_function_link = self.goal_function_links.get(entry_name)
+            if goal_function_link:
+                goal_name, equation_name = goal_function_link
+                self._add_goal_graph(graph, goal_name)
+                self._add_equation_graph_node(graph, equation_name)
+                graph.add_edge("goal", goal_name, "equation", equation_name)
+        else:
+            self._add_equation_graph_node(graph, entry_name)
+            for goal_name in self.equation_to_goals.get(entry_name, []):
+                if not self._entry_exists(goal_name):
+                    continue
+                self._add_goal_graph(graph, goal_name)
+                graph.add_edge("goal", goal_name, "equation", entry_name)
+                for template_name in self._templates_for_goal(goal_name):
+                    self._add_template_graph(graph, template_name, include_goal_edges=False)
+                    graph.add_edge("template", template_name, "goal", goal_name)
+                    for player_name in self.template_to_players.get(template_name, []):
+                        if self._entry_exists(player_name):
+                            graph.add_entry("player", player_name, _player_display_name)
+                            graph.add_edge(
+                                "player",
+                                player_name,
+                                "template",
+                                template_name,
+                            )
+
+        return graph.to_view_data()
+
+    def _add_player_graph(self, graph, player_name: str) -> None:
+        """Add a player plus its templates, goals, and goal equations."""
+        if not self._entry_exists(player_name):
+            return
+        graph.add_entry("player", player_name, _player_display_name)
+        for template_name in self.player_to_templates.get(player_name, []):
+            if not self._entry_exists(template_name):
+                continue
+            self._add_template_graph(graph, template_name)
+            graph.add_edge("player", player_name, "template", template_name)
+
+    def _add_template_graph(
+        self,
+        graph,
+        template_name: str,
+        include_goal_edges: bool = True,
+    ) -> None:
+        """Add a template plus goals referenced by it."""
+        if not self._entry_exists(template_name):
+            return
+        graph.add_entry("template", template_name, _template_display_name)
+        if not include_goal_edges:
+            return
+        for goal_name in self._template_goal_names(template_name):
+            if not self._entry_exists(goal_name):
+                continue
+            graph.add_entry("goal", goal_name, _goal_display_name)
+            graph.add_edge("template", template_name, "goal", goal_name)
+            self._add_goal_graph(graph, goal_name)
+
+    def _add_goal_graph(self, graph, goal_name: str) -> None:
+        """Add a goal plus equations linked through goal functions."""
+        if not self._entry_exists(goal_name):
+            return
+        graph.add_entry("goal", goal_name, _goal_display_name)
+        for equation_name in self.goal_to_equations.get(goal_name, []):
+            self._add_equation_graph_node(graph, equation_name)
+            graph.add_edge("goal", goal_name, "equation", equation_name)
+
+    def _add_equation_graph_node(self, graph, equation_name: str) -> None:
+        """Add one equation node if loaded."""
+        if self._entry_exists(equation_name):
+            graph.add_entry("equation", equation_name, lambda name: name)
+
+    def _template_goal_names(self, template_name: str) -> list[str]:
+        """Return concrete goal names referenced by one template."""
+        if self.index is None:
+            return []
+
+        entry = self.index.get(template_name)
+        if entry is None:
+            return []
+
+        goal_names: list[str] = []
+        for line in entry.normalized_expression.splitlines():
+            if "=" not in line:
+                continue
+            field_key, field_value = line.split("=", 1)
+            resolver = self._template_goal_field_resolver(field_key.strip())
+            if resolver is None:
+                continue
+            for value in self._split_structured_value(field_value):
+                for _text, target in resolver(value):
+                    if target is not None and target not in goal_names:
+                        goal_names.append(target)
+
+        return goal_names
+
+    def _templates_for_goal(self, goal_name: str) -> list[str]:
+        """Return loaded templates that reference one goal directly or by category."""
+        if self.index is None:
+            return []
+        template_names: list[str] = []
+        for entry_name in self.index.effective_equations.keys():
+            if self._entry_type(entry_name) != "template":
+                continue
+            if goal_name in self._template_goal_names(entry_name):
+                template_names.append(entry_name)
+        return template_names
+
+    def _entry_exists(self, entry_name: str) -> bool:
+        """Return whether an entry is loaded."""
+        return self.index is not None and self.index.get(entry_name) is not None
 
     def _build_template_goal_field_links(
         self,

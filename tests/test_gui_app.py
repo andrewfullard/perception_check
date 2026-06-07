@@ -347,6 +347,50 @@ def test_build_related_links_for_template_include_players() -> None:
     ]
 
 
+def test_build_relationship_graph_for_template_neighborhood() -> None:
+    app = _app_without_tk()
+    app.entry_types = {
+        "Player::BasicEmpire": "player",
+        "Template::Basic": "template",
+        "Goal::Conquer_Pirate": "goal",
+        "Eq_A": "equation",
+    }
+    app.template_to_players = {"Template::Basic": ["Player::BasicEmpire"]}
+    app.goal_to_equations = {"Goal::Conquer_Pirate": ["Eq_A"]}
+    entries = {
+        "Player::BasicEmpire": SimpleNamespace(normalized_expression=""),
+        "Template::Basic": SimpleNamespace(
+            normalized_expression="Turn_On/Goals/Goal_Type=Conquer_Pirate"
+        ),
+        "Goal::Conquer_Pirate": SimpleNamespace(normalized_expression=""),
+        "Eq_A": SimpleNamespace(normalized_expression=""),
+    }
+    app.index = SimpleNamespace(
+        get=lambda name: entries.get(name),
+        effective_equations=entries,
+    )
+
+    columns, edges = app._build_relationship_graph("Template::Basic")
+
+    assert columns == [
+        (
+            "AI Players",
+            [("player:Player::BasicEmpire", "BasicEmpire", "Player::BasicEmpire")],
+        ),
+        ("AI Templates", [("template:Template::Basic", "Basic", "Template::Basic")]),
+        (
+            "AI Goals",
+            [("goal:Goal::Conquer_Pirate", "Conquer_Pirate", "Goal::Conquer_Pirate")],
+        ),
+        ("Equations", [("equation:Eq_A", "Eq_A", "Eq_A")]),
+    ]
+    assert edges == [
+        ("template:Template::Basic", "goal:Goal::Conquer_Pirate"),
+        ("goal:Goal::Conquer_Pirate", "equation:Eq_A"),
+        ("player:Player::BasicEmpire", "template:Template::Basic"),
+    ]
+
+
 def test_select_entry_by_name_displays_hidden_goal_entry() -> None:
     app = _app_without_tk()
     displayed: list[str] = []
