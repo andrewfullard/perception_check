@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+import re
 from tkinter import messagebox
 
 from perceptual_equations_parser import (
@@ -46,6 +47,8 @@ class PerceptualEquationsAppMergeMixin:
             self.player_template_modes = {}
             self.template_to_players = {}
             self.goal_function_links = {}
+            self.goal_equation_function_sets = {}
+            self.player_goal_function_sets = {}
             self.entry_types = {
                 name: "equation" for name in self.index.effective_equations.keys()
             }
@@ -146,6 +149,11 @@ class PerceptualEquationsAppMergeMixin:
                         link_equation_name,
                         link_goal_name,
                     )
+                    self._append_unique(
+                        self.goal_equation_function_sets,
+                        (link_goal_name, link_equation_name),
+                        self._normalize_goal_function_set_name(entry.source_file.stem),
+                    )
                 self._merge_non_equation_entry(layer_name, entry)
 
     def _merge_goal_documents(
@@ -189,6 +197,14 @@ class PerceptualEquationsAppMergeMixin:
                         self.player_template_modes,
                         (entry.name, template_name),
                         game_mode,
+                    )
+                for goal_function_set in self._extract_player_goal_function_sets(
+                    entry.normalized_expression
+                ):
+                    self._append_unique(
+                        self.player_goal_function_sets,
+                        entry.name,
+                        goal_function_set,
                     )
                 self._merge_non_equation_entry(layer_name, entry)
 
@@ -264,6 +280,31 @@ class PerceptualEquationsAppMergeMixin:
             for template_name in extract_player_template_links(line):
                 template_modes.append((template_name, game_mode))
         return template_modes
+
+    def _extract_player_goal_function_sets(
+        self,
+        normalized_expression: str,
+    ) -> list[str]:
+        """Extract GoalProposalFunctionSets file/set names from one player."""
+        goal_function_sets: list[str] = []
+        for line in normalized_expression.splitlines():
+            if "=" not in line:
+                continue
+            field_key, field_value = line.split("=", 1)
+            if "goalproposalfunctionsets" not in field_key.lower().split("/"):
+                continue
+            for set_ref in re.split(r"[\s,]+", field_value.strip()):
+                if not set_ref:
+                    continue
+                goal_function_sets.append(
+                    self._normalize_goal_function_set_name(set_ref)
+                )
+        return goal_function_sets
+
+    def _normalize_goal_function_set_name(self, set_ref: str) -> str:
+        """Normalize a GoalFunction set/file reference for matching."""
+        normalized = Path(set_ref.strip().replace("\\", "/")).stem
+        return normalized.lower()
 
     def _entry_type(self, entry_name: str) -> str:
         """Return entry type metadata used by list, links, and evaluation UI."""

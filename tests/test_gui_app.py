@@ -23,6 +23,8 @@ def _app_without_tk() -> PerceptualEquationsApp:
     app.player_template_modes = {}
     app.template_to_players = {}
     app.goal_function_links = {}
+    app.goal_equation_function_sets = {}
+    app.player_goal_function_sets = {}
     app.index = None
     app.range_analyzer = None
     app.token_bounds = {}
@@ -399,10 +401,18 @@ def test_build_relationship_graph_for_player_filters_template_goals_by_game_mode
         "Template::Basic": "template",
         "Goal::Space_Attack": "goal",
         "Goal::Land_Attack": "goal",
+        "Eq_Space_A": "equation",
+        "Eq_Space_B": "equation",
     }
     app.player_to_templates = {"Player::BasicEmpire": ["Template::Basic"]}
     app.player_template_modes = {
         ("Player::BasicEmpire", "Template::Basic"): ["Space"],
+    }
+    app.player_goal_function_sets = {"Player::BasicEmpire": ["space_set_a"]}
+    app.goal_to_equations = {"Goal::Space_Attack": ["Eq_Space_A", "Eq_Space_B"]}
+    app.goal_equation_function_sets = {
+        ("Goal::Space_Attack", "Eq_Space_A"): ["space_set_a"],
+        ("Goal::Space_Attack", "Eq_Space_B"): ["space_set_b"],
     }
     entries = {
         "Player::BasicEmpire": SimpleNamespace(normalized_expression=""),
@@ -415,6 +425,8 @@ def test_build_relationship_graph_for_player_filters_template_goals_by_game_mode
         "Goal::Land_Attack": SimpleNamespace(
             normalized_expression="GameMode=Land\nCategory=Offensive"
         ),
+        "Eq_Space_A": SimpleNamespace(normalized_expression=""),
+        "Eq_Space_B": SimpleNamespace(normalized_expression=""),
     }
     app.index = SimpleNamespace(
         get=lambda name: entries.get(name),
@@ -430,11 +442,24 @@ def test_build_relationship_graph_for_player_filters_template_goals_by_game_mode
         ),
         ("AI Templates", [("template:Template::Basic", "Basic", "Template::Basic")]),
         ("AI Goals", [("goal:Goal::Space_Attack", "Space_Attack", "Goal::Space_Attack")]),
+        ("Equations", [("equation:Eq_Space_A", "Eq_Space_A", "Eq_Space_A")]),
     ]
     assert edges == [
         ("template:Template::Basic", "goal:Goal::Space_Attack"),
+        ("goal:Goal::Space_Attack", "equation:Eq_Space_A"),
         ("player:Player::BasicEmpire", "template:Template::Basic"),
     ]
+
+
+def test_extract_player_goal_function_sets_normalizes_file_references() -> None:
+    app = _app_without_tk()
+
+    goal_function_sets = app._extract_player_goal_function_sets(
+        "GoalProposalFunctionSets/Space=Space_Set.xml Land_Set\n"
+        "Nested/GoalProposalFunctionSets/Galactic=Data\\AI\\GoalFunctions\\Galactic_Set.xml"
+    )
+
+    assert goal_function_sets == ["space_set", "land_set", "galactic_set"]
 
 
 def test_select_entry_by_name_displays_hidden_goal_entry() -> None:

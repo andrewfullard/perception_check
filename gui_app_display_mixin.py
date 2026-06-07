@@ -505,11 +505,17 @@ class PerceptualEquationsAppDisplayMixin:
         if not self._entry_exists(player_name):
             return
         graph.add_entry("player", player_name, _player_display_name)
+        goal_function_sets = self.player_goal_function_sets.get(player_name)
         for template_name in self.player_to_templates.get(player_name, []):
             if not self._entry_exists(template_name):
                 continue
             game_modes = self.player_template_modes.get((player_name, template_name))
-            self._add_template_graph(graph, template_name, game_modes=game_modes)
+            self._add_template_graph(
+                graph,
+                template_name,
+                game_modes=game_modes,
+                goal_function_sets=goal_function_sets,
+            )
             graph.add_edge("player", player_name, "template", template_name)
 
     def _add_template_graph(
@@ -518,6 +524,7 @@ class PerceptualEquationsAppDisplayMixin:
         template_name: str,
         include_goal_edges: bool = True,
         game_modes: list[str] | None = None,
+        goal_function_sets: list[str] | None = None,
     ) -> None:
         """Add a template plus goals referenced by it."""
         if not self._entry_exists(template_name):
@@ -530,16 +537,39 @@ class PerceptualEquationsAppDisplayMixin:
                 continue
             graph.add_entry("goal", goal_name, _goal_display_name)
             graph.add_edge("template", template_name, "goal", goal_name)
-            self._add_goal_graph(graph, goal_name)
+            self._add_goal_graph(graph, goal_name, goal_function_sets)
 
-    def _add_goal_graph(self, graph, goal_name: str) -> None:
+    def _add_goal_graph(
+        self,
+        graph,
+        goal_name: str,
+        goal_function_sets: list[str] | None = None,
+    ) -> None:
         """Add a goal plus equations linked through goal functions."""
         if not self._entry_exists(goal_name):
             return
         graph.add_entry("goal", goal_name, _goal_display_name)
-        for equation_name in self.goal_to_equations.get(goal_name, []):
+        for equation_name in self._goal_equation_names(goal_name, goal_function_sets):
             self._add_equation_graph_node(graph, equation_name)
             graph.add_edge("goal", goal_name, "equation", equation_name)
+
+    def _goal_equation_names(
+        self,
+        goal_name: str,
+        goal_function_sets: list[str] | None = None,
+    ) -> list[str]:
+        """Return equations linked to a goal, optionally filtered by function set."""
+        equation_names = self.goal_to_equations.get(goal_name, [])
+        if not goal_function_sets:
+            return equation_names
+
+        allowed_sets = {goal_function_set.lower() for goal_function_set in goal_function_sets}
+        filtered_equations: list[str] = []
+        for equation_name in equation_names:
+            edge_sets = self.goal_equation_function_sets.get((goal_name, equation_name), [])
+            if any(edge_set.lower() in allowed_sets for edge_set in edge_sets):
+                filtered_equations.append(equation_name)
+        return filtered_equations
 
     def _add_equation_graph_node(self, graph, equation_name: str) -> None:
         """Add one equation node if loaded."""

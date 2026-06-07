@@ -36,6 +36,8 @@ class PerceptualEquationsApp(
         self.player_template_modes: dict[tuple[str, str], list[str]] = {}
         self.template_to_players: dict[str, list[str]] = {}
         self.goal_function_links: dict[str, tuple[str, str]] = {}
+        self.goal_equation_function_sets: dict[tuple[str, str], list[str]] = {}
+        self.player_goal_function_sets: dict[str, list[str]] = {}
         self.entry_types: dict[str, str] = {}
         self.goal_display_to_entry: dict[str, str] = {}
         self.player_display_to_entry: dict[str, str] = {}
