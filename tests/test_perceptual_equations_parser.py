@@ -61,6 +61,23 @@ def test_parse_file_rejects_wrong_root_tag(tmp_path: Path) -> None:
         parser.parse_file(xml_file)
 
 
+def test_parse_file_reports_file_for_unclosed_token(tmp_path: Path) -> None:
+    xml_file = tmp_path / "broken_equations.xml"
+    xml_file.write_text(
+        '<?xml version="1.0"?>\n<Equations><Broken',
+        encoding="utf-8",
+    )
+
+    parser = PerceptualEquationsParser()
+
+    with pytest.raises(ValueError) as exc_info:
+        parser.parse_file(xml_file)
+
+    message = str(exc_info.value)
+    assert str(xml_file) in message
+    assert "unclosed token" in message
+
+
 def test_parse_folder_and_recursive_modes(tmp_path: Path) -> None:
     top_file = tmp_path / "top.xml"
     nested_dir = tmp_path / "nested"

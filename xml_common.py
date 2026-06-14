@@ -10,6 +10,15 @@ _WHITESPACE_PATTERN = re.compile(r"\s+")
 DocumentT = TypeVar("DocumentT")
 
 
+def parse_xml_file(xml_file: str | Path) -> ET.ElementTree:
+    """Parse an XML file and include the source path in parse failures."""
+    xml_path = Path(xml_file)
+    try:
+        return ET.parse(xml_path)
+    except ET.ParseError as exc:
+        raise ValueError(f"Failed to parse XML file {xml_path}: {exc}") from exc
+
+
 def normalize_expression(text: str) -> str:
     """Collapse all whitespace to single spaces and trim ends."""
     return _WHITESPACE_PATTERN.sub(" ", text).strip()
@@ -79,7 +88,7 @@ def parse_named_entries_text_file(
 ) -> Tuple[Path, Dict[str, str]]:
     """Parse direct root children into a prefixed name->summary text map."""
     xml_path = Path(xml_file)
-    tree = ET.parse(xml_path)
+    tree = parse_xml_file(xml_path)
     root = tree.getroot()
 
     if root.tag != expected_root_tag:
@@ -109,7 +118,7 @@ def parse_single_named_entry_text_file(
 ) -> Tuple[Path, Dict[str, str]]:
     """Parse one XML root as a single prefixed name->summary text entry."""
     xml_path = Path(xml_file)
-    tree = ET.parse(xml_path)
+    tree = parse_xml_file(xml_path)
     root = tree.getroot()
 
     if root.tag != expected_root_tag:

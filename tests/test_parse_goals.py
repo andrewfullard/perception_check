@@ -99,6 +99,23 @@ def test_parse_goals_file_produces_prefixed_entries(tmp_path: Path) -> None:
     assert entry.normalized_expression == "GameMode=Galactic\nCategory=Offensive"
 
 
+def test_parse_goals_file_reports_file_for_unclosed_token(tmp_path: Path) -> None:
+    xml_file = tmp_path / "broken_goals.xml"
+    xml_file.write_text(
+        '<?xml version="1.0"?>\n<Goals><Conquer',
+        encoding="utf-8",
+    )
+
+    parser = PerceptualEquationsParser()
+
+    with pytest.raises(ValueError) as exc_info:
+        parser.parse_goals_file(xml_file)
+
+    message = str(exc_info.value)
+    assert str(xml_file) in message
+    assert "unclosed token" in message
+
+
 def test_parse_goal_folders_collect_documents(tmp_path: Path) -> None:
     goal_functions_dir = tmp_path / "GoalFunctions"
     goals_dir = tmp_path / "Goals"

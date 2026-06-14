@@ -2,16 +2,15 @@ from __future__ import annotations
 
 from pathlib import Path
 from typing import Dict, List
-import xml.etree.ElementTree as ET
 
 from data_models import PerceptualEquation, PerceptualEquationDocument
-from xml_common import extract_raw_expression, normalize_expression
+from xml_common import extract_raw_expression, normalize_expression, parse_xml_file
 
 
 def parse_equations_file(xml_file: str | Path) -> PerceptualEquationDocument:
     """Parse one <Equations> XML file into equation records."""
     xml_path = Path(xml_file)
-    tree = ET.parse(xml_path)
+    tree = parse_xml_file(xml_path)
     root = tree.getroot()
 
     if root.tag != "Equations":
