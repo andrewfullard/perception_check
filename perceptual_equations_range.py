@@ -7,6 +7,7 @@ import re
 
 from perceptual_equations_parser import PerceptualEquationIndex
 from perceptual_token_bounds import TokenBounds, get_token_bounds
+from gui_app_text_utils import extract_function_name
 
 
 _EDITABLE_TOKEN_PATTERN = re.compile(
@@ -90,7 +91,7 @@ class PerceptualEquationRangeAnalyzer:
         return _EDITABLE_TOKEN_PATTERN.sub(_replace, expression), token_ranges
 
     def _resolve_token_range(self, token_key: str) -> NumericRange:
-        function_name = self._extract_function_name(token_key)
+        function_name = extract_function_name(token_key)
         if function_name:
             if self._index.get(function_name) is None:
                 return NumericRange(float("-inf"), float("inf"))
@@ -103,18 +104,6 @@ class PerceptualEquationRangeAnalyzer:
         minimum = float("-inf") if bounds.min_value is None else float(bounds.min_value)
         maximum = float("inf") if bounds.max_value is None else float(bounds.max_value)
         return NumericRange(minimum, maximum)
-
-    def _extract_function_name(self, token_key: str) -> str | None:
-        token_no_params = token_key.split("{", 1)[0].strip()
-        if not token_no_params.startswith("Function_"):
-            return None
-
-        function_ref = token_no_params[len("Function_") :]
-        if function_ref.endswith(".Evaluate"):
-            function_ref = function_ref[: -len(".Evaluate")]
-
-        function_ref = function_ref.strip()
-        return function_ref or None
 
     def _normalize_expression_for_eval(self, expression: str) -> str:
         normalized = " ".join(expression.split())

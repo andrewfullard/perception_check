@@ -1,10 +1,15 @@
 from __future__ import annotations
 
+from functools import partial
 from pathlib import Path
-from typing import Dict, List
 
 from data_models import PerceptualEquation, PerceptualEquationDocument
-from xml_common import extract_raw_expression, normalize_expression, parse_xml_file
+from xml_common import (
+    extract_raw_expression,
+    normalize_expression,
+    parse_documents_folder,
+    parse_xml_file,
+)
 
 
 def parse_equations_file(xml_file: str | Path) -> PerceptualEquationDocument:
@@ -18,7 +23,7 @@ def parse_equations_file(xml_file: str | Path) -> PerceptualEquationDocument:
             f"Expected root tag 'Equations' in {xml_path}, found '{root.tag}'"
         )
 
-    equations: Dict[str, PerceptualEquation] = {}
+    equations: dict[str, PerceptualEquation] = {}
 
     for child in root:
         if not isinstance(child.tag, str):
@@ -36,26 +41,19 @@ def parse_equations_file(xml_file: str | Path) -> PerceptualEquationDocument:
     return PerceptualEquationDocument(source_file=xml_path, equations=equations)
 
 
-def parse_equations_folder(
-    folder: str | Path, pattern: str = "*.xml"
-) -> List[PerceptualEquationDocument]:
-    """Parse all equation XML files in a folder (non-recursive)."""
-    folder_path = Path(folder)
-    documents: List[PerceptualEquationDocument] = []
-
-    for xml_path in sorted(folder_path.glob(pattern)):
-        if xml_path.is_file():
-            documents.append(parse_equations_file(xml_path))
-
-    return documents
+parse_equations_folder = partial(
+    parse_documents_folder,
+    parse_document=parse_equations_file,
+)
+parse_equations_folder.__doc__ = "Parse all equation XML files in a folder (non-recursive)."
 
 
 def parse_equations_folder_recursive(
     folder: str | Path, pattern: str = "*.xml"
-) -> List[PerceptualEquationDocument]:
+) -> list[PerceptualEquationDocument]:
     """Parse all equation XML files in a folder tree."""
     folder_path = Path(folder)
-    documents: List[PerceptualEquationDocument] = []
+    documents: list[PerceptualEquationDocument] = []
 
     for xml_path in sorted(folder_path.rglob(pattern)):
         if xml_path.is_file():

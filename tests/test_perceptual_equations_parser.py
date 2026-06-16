@@ -2,9 +2,12 @@ from pathlib import Path
 
 import pytest
 
-from perceptual_equations_parser import (
-    PerceptualEquationsParser,
+from parse_equations import (
+    parse_equations_file,
+    parse_equations_folder,
+    parse_equations_folder_recursive,
 )
+from perceptual_equations_parser import build_index_from_folders, parse_layer
 
 
 def _write_equations_xml(path: Path, equations: dict[str, str]) -> None:
@@ -36,8 +39,7 @@ def test_parse_file_creates_equation_objects_with_raw_and_normalized_text(
         },
     )
 
-    parser = PerceptualEquationsParser()
-    document = parser.parse_file(xml_file)
+    document = parse_equations_file(xml_file)
 
     assert document.source_file == xml_file
     assert len(document.equations) == 2
@@ -55,10 +57,8 @@ def test_parse_file_rejects_wrong_root_tag(tmp_path: Path) -> None:
     xml_file = tmp_path / "invalid.xml"
     _write_non_equations_xml(xml_file)
 
-    parser = PerceptualEquationsParser()
-
     with pytest.raises(ValueError, match="Expected root tag 'Equations'"):
-        parser.parse_file(xml_file)
+        parse_equations_file(xml_file)
 
 
 def test_parse_file_reports_file_for_unclosed_token(tmp_path: Path) -> None:
@@ -68,10 +68,8 @@ def test_parse_file_reports_file_for_unclosed_token(tmp_path: Path) -> None:
         encoding="utf-8",
     )
 
-    parser = PerceptualEquationsParser()
-
     with pytest.raises(ValueError) as exc_info:
-        parser.parse_file(xml_file)
+        parse_equations_file(xml_file)
 
     message = str(exc_info.value)
     assert str(xml_file) in message
@@ -87,10 +85,8 @@ def test_parse_folder_and_recursive_modes(tmp_path: Path) -> None:
     _write_equations_xml(top_file, {"TopOnly": "1"})
     _write_equations_xml(nested_file, {"NestedOnly": "2"})
 
-    parser = PerceptualEquationsParser()
-
-    non_recursive_docs = parser.parse_folder(tmp_path)
-    recursive_docs = parser.parse_folder_recursive(tmp_path)
+    non_recursive_docs = parse_equations_folder(tmp_path)
+    recursive_docs = parse_equations_folder_recursive(tmp_path)
 
     assert [doc.source_file.name for doc in non_recursive_docs] == ["top.xml"]
     assert sorted(doc.source_file.name for doc in recursive_docs) == [
@@ -108,10 +104,8 @@ def test_parse_layer_rejects_duplicate_equation_names_within_layer(
     _write_equations_xml(layer_dir / "one.xml", {"Shared": "1"})
     _write_equations_xml(layer_dir / "two.xml", {"Shared": "2"})
 
-    parser = PerceptualEquationsParser()
-
     with pytest.raises(ValueError, match="Duplicate equation names found within layer"):
-        parser.parse_layer("Base", layer_dir)
+        parse_layer("Base", layer_dir)
 
 
 def test_build_index_applies_later_layer_override_and_keeps_history(
@@ -128,8 +122,7 @@ def test_build_index_applies_later_layer_override_and_keeps_history(
     _write_equations_xml(fotr_dir / "fotr.xml", {"Budget": "2", "OnlyFotR": "20"})
     _write_equations_xml(tr_dir / "tr.xml", {"Budget": "3", "OnlyTR": "30"})
 
-    parser = PerceptualEquationsParser()
-    index = parser.build_index_from_folders(
+    index = build_index_from_folders(
         [
             ("Data", base_dir),
             ("FotR", fotr_dir),
@@ -154,8 +147,7 @@ def test_index_require_raises_for_missing_name(tmp_path: Path) -> None:
     base_dir.mkdir()
     _write_equations_xml(base_dir / "base.xml", {"A": "1"})
 
-    parser = PerceptualEquationsParser()
-    index = parser.build_index_from_folders([("Data", base_dir)])
+    index = build_index_from_folders([("Data", base_dir)])
 
     with pytest.raises(KeyError, match="not found"):
         index.require("MissingEquation")

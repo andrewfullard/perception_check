@@ -2,12 +2,18 @@ from pathlib import Path
 
 import pytest
 
-from perceptual_equations_parser import (
-    AIPlayerDocument,
-    AITemplateDocument,
-    GoalDocument,
-    GoalFunctionDocument,
-    PerceptualEquationsParser,
+from data_models import Document
+from parse_goals import (
+    parse_goal_functions_file,
+    parse_goal_functions_folder,
+    parse_goals_file,
+    parse_goals_folder,
+)
+from parse_players import (
+    parse_players_file,
+    parse_players_folder,
+    parse_templates_file,
+    parse_templates_folder,
 )
 
 
@@ -67,11 +73,11 @@ def test_parse_goal_functions_file_produces_prefixed_entries(tmp_path: Path) -> 
         },
     )
 
-    parser = PerceptualEquationsParser()
-    document = parser.parse_goal_functions_file(xml_file)
-    assert isinstance(document, GoalFunctionDocument)
+    document = parse_goal_functions_file(xml_file)
+    assert isinstance(document, Document)
 
     entry = document.require("GoalFunction::Build_Space_Forces")
+    assert entry.entry_type == "goal_function"
     assert entry.source_file == xml_file
     assert entry.normalized_expression == (
         "Goal=Build_Space_Forces\nFunction=Allow_Blind_Space_Production"
@@ -90,11 +96,11 @@ def test_parse_goals_file_produces_prefixed_entries(tmp_path: Path) -> None:
         },
     )
 
-    parser = PerceptualEquationsParser()
-    document = parser.parse_goals_file(xml_file)
-    assert isinstance(document, GoalDocument)
+    document = parse_goals_file(xml_file)
+    assert isinstance(document, Document)
 
     entry = document.require("Goal::Conquer_Pirate")
+    assert entry.entry_type == "goal"
     assert entry.source_file == xml_file
     assert entry.normalized_expression == "GameMode=Galactic\nCategory=Offensive"
 
@@ -106,10 +112,8 @@ def test_parse_goals_file_reports_file_for_unclosed_token(tmp_path: Path) -> Non
         encoding="utf-8",
     )
 
-    parser = PerceptualEquationsParser()
-
     with pytest.raises(ValueError) as exc_info:
-        parser.parse_goals_file(xml_file)
+        parse_goals_file(xml_file)
 
     message = str(exc_info.value)
     assert str(xml_file) in message
@@ -131,14 +135,13 @@ def test_parse_goal_folders_collect_documents(tmp_path: Path) -> None:
         {"GoalA": {"Category": "Always"}},
     )
 
-    parser = PerceptualEquationsParser()
-    goal_function_docs = parser.parse_goal_functions_folder(goal_functions_dir)
-    goal_docs = parser.parse_goals_folder(goals_dir)
+    goal_function_docs = parse_goal_functions_folder(goal_functions_dir)
+    goal_docs = parse_goals_folder(goals_dir)
 
     assert len(goal_function_docs) == 1
     assert len(goal_docs) == 1
-    assert isinstance(goal_function_docs[0], GoalFunctionDocument)
-    assert isinstance(goal_docs[0], GoalDocument)
+    assert isinstance(goal_function_docs[0], Document)
+    assert isinstance(goal_docs[0], Document)
     assert goal_function_docs[0].get("GoalFunction::One") is not None
     assert goal_docs[0].get("Goal::GoalA") is not None
 
@@ -155,11 +158,11 @@ def test_parse_players_file_produces_prefixed_single_entry(tmp_path: Path) -> No
         },
     )
 
-    parser = PerceptualEquationsParser()
-    document = parser.parse_players_file(xml_file)
-    assert isinstance(document, AIPlayerDocument)
+    document = parse_players_file(xml_file)
+    assert isinstance(document, Document)
 
     entry = document.require("Player::BasicEmpire")
+    assert entry.entry_type == "player"
     assert entry.source_file == xml_file
     assert "Name=BasicEmpire" in entry.normalized_expression
     assert "Templates/Space=Generic_Space" in entry.normalized_expression
@@ -174,9 +177,8 @@ def test_parse_players_file_rejects_missing_player_name(tmp_path: Path) -> None:
         encoding="utf-8",
     )
 
-    parser = PerceptualEquationsParser()
     with pytest.raises(ValueError, match="Expected non-empty <Name>"):
-        parser.parse_players_file(xml_file)
+        parse_players_file(xml_file)
 
 
 def test_parse_templates_file_produces_prefixed_entries(tmp_path: Path) -> None:
@@ -191,11 +193,11 @@ def test_parse_templates_file_produces_prefixed_entries(tmp_path: Path) -> None:
         },
     )
 
-    parser = PerceptualEquationsParser()
-    document = parser.parse_templates_file(xml_file)
-    assert isinstance(document, AITemplateDocument)
+    document = parse_templates_file(xml_file)
+    assert isinstance(document, Document)
 
     entry = document.require("Template::Basic_Empire_Default")
+    assert entry.entry_type == "template"
     assert entry.source_file == xml_file
     assert entry.normalized_expression == "Priority=1\nTrigger=One"
 
@@ -216,8 +218,7 @@ def test_parse_templates_file_preserves_nested_tag_paths(tmp_path: Path) -> None
         encoding="utf-8",
     )
 
-    parser = PerceptualEquationsParser()
-    document = parser.parse_templates_file(xml_file)
+    document = parse_templates_file(xml_file)
     entry = document.require("Template::Basic_Empire_Default")
 
     assert "Turn_Off/Goals=Goal_1 Goal_2" in entry.normalized_expression
@@ -239,13 +240,12 @@ def test_parse_players_and_templates_folders_collect_documents(tmp_path: Path) -
         {"Basic_Empire_Default": {"Priority": "1"}},
     )
 
-    parser = PerceptualEquationsParser()
-    player_docs = parser.parse_players_folder(players_dir)
-    template_docs = parser.parse_templates_folder(templates_dir)
+    player_docs = parse_players_folder(players_dir)
+    template_docs = parse_templates_folder(templates_dir)
 
     assert len(player_docs) == 1
     assert len(template_docs) == 1
-    assert isinstance(player_docs[0], AIPlayerDocument)
-    assert isinstance(template_docs[0], AITemplateDocument)
+    assert isinstance(player_docs[0], Document)
+    assert isinstance(template_docs[0], Document)
     assert player_docs[0].get("Player::BasicEmpire") is not None
     assert template_docs[0].get("Template::Basic_Empire_Default") is not None

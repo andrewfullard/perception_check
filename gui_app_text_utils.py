@@ -44,9 +44,22 @@ def normalize_template_name(template_text: str | None) -> str | None:
     return f"Template::{normalized}"
 
 
+def extract_function_name(token_key: str) -> str | None:
+    """Extract equation name from Function_* token text."""
+    token_no_params = token_key.split("{", 1)[0].strip()
+    if not token_no_params.startswith("Function_"):
+        return None
+
+    function_ref = token_no_params[len("Function_") :]
+    if function_ref.endswith(".Evaluate"):
+        function_ref = function_ref[: -len(".Evaluate")]
+
+    function_ref = function_ref.strip()
+    return function_ref or None
+
+
 def normalize_equation_name(
     function_text: str | None,
-    extract_function_name: callable,
 ) -> str | None:
     """Convert GoalFunction Function field text into canonical equation name."""
     if function_text is None:
@@ -68,14 +81,13 @@ def normalize_equation_name(
 
 def extract_goal_function_link(
     normalized_expression: str,
-    extract_function_name: callable,
 ) -> tuple[str | None, str | None]:
     """Extract normalized Goal::* and equation names from GoalFunction text."""
     fields = parse_structured_fields(normalized_expression)
     goal_value = fields.get("goal")
     function_value = fields.get("function")
     goal_name = normalize_goal_name(goal_value)
-    equation_name = normalize_equation_name(function_value, extract_function_name)
+    equation_name = normalize_equation_name(function_value)
     return goal_name, equation_name
 
 
@@ -95,10 +107,3 @@ def extract_player_template_links(normalized_expression: str) -> list[str]:
                 templates.append(normalized_template)
 
     return templates
-
-
-def strip_entry_prefix(entry_name: str, prefix: str) -> str:
-    """Return entry name without the given prefix when present."""
-    if entry_name.startswith(prefix):
-        return entry_name[len(prefix) :]
-    return entry_name

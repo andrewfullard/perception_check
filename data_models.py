@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Dict, Iterator, List, Optional, Tuple
+from typing import Iterator
 
 
 @dataclass
@@ -14,20 +14,15 @@ class PerceptualEquation:
     normalized_expression: str
     source_file: Path
 
-    def update_expression(self, new_expression: str) -> None:
-        """Replace text fields when callers update the expression payload."""
-        self.raw_expression = new_expression
-        self.normalized_expression = " ".join(new_expression.split())
-
 
 @dataclass
 class PerceptualEquationDocument:
     """A parsed XML file containing many named equation-like entries."""
 
     source_file: Path
-    equations: Dict[str, PerceptualEquation] = field(default_factory=dict)
+    equations: dict[str, PerceptualEquation] = field(default_factory=dict)
 
-    def get(self, equation_name: str) -> Optional[PerceptualEquation]:
+    def get(self, equation_name: str) -> PerceptualEquation | None:
         return self.equations.get(equation_name)
 
     def require(self, equation_name: str) -> PerceptualEquation:
@@ -43,123 +38,34 @@ class PerceptualEquationDocument:
 
 
 @dataclass
-class GoalFunctionEntry:
-    """A single entry parsed from a <FunctionSet> file."""
+class Entry:
+    """A single parsed non-equation AI entry."""
 
     name: str
     raw_expression: str
     normalized_expression: str
     source_file: Path
+    entry_type: str = "entry"
 
 
 @dataclass
-class GoalEntry:
-    """A single entry parsed from a <Goals> file."""
-
-    name: str
-    raw_expression: str
-    normalized_expression: str
-    source_file: Path
-
-
-@dataclass
-class GoalFunctionDocument:
-    """A parsed GoalFunctions XML file containing named goal-function entries."""
+class Document:
+    """A parsed XML file containing named non-equation AI entries."""
 
     source_file: Path
-    goal_functions: Dict[str, GoalFunctionEntry] = field(default_factory=dict)
+    entries: dict[str, Entry] = field(default_factory=dict)
 
-    def get(self, name: str) -> Optional[GoalFunctionEntry]:
-        return self.goal_functions.get(name)
+    def get(self, name: str) -> Entry | None:
+        return self.entries.get(name)
 
-    def require(self, name: str) -> GoalFunctionEntry:
+    def require(self, name: str) -> Entry:
         entry = self.get(name)
         if entry is None:
-            raise KeyError(f"GoalFunction '{name}' not found in {self.source_file}")
+            raise KeyError(f"Entry '{name}' not found in {self.source_file}")
         return entry
 
-    def __iter__(self) -> Iterator[GoalFunctionEntry]:
-        return iter(self.goal_functions.values())
-
-
-@dataclass
-class GoalDocument:
-    """A parsed Goals XML file containing named goal entries."""
-
-    source_file: Path
-    goals: Dict[str, GoalEntry] = field(default_factory=dict)
-
-    def get(self, name: str) -> Optional[GoalEntry]:
-        return self.goals.get(name)
-
-    def require(self, name: str) -> GoalEntry:
-        entry = self.get(name)
-        if entry is None:
-            raise KeyError(f"Goal '{name}' not found in {self.source_file}")
-        return entry
-
-    def __iter__(self) -> Iterator[GoalEntry]:
-        return iter(self.goals.values())
-
-
-@dataclass
-class AIPlayerEntry:
-    """A single entry parsed from an <AIPlayerType> file."""
-
-    name: str
-    raw_expression: str
-    normalized_expression: str
-    source_file: Path
-
-
-@dataclass
-class AIPlayerDocument:
-    """A parsed AI Players XML file containing one named player entry."""
-
-    source_file: Path
-    players: Dict[str, AIPlayerEntry] = field(default_factory=dict)
-
-    def get(self, name: str) -> Optional[AIPlayerEntry]:
-        return self.players.get(name)
-
-    def require(self, name: str) -> AIPlayerEntry:
-        entry = self.get(name)
-        if entry is None:
-            raise KeyError(f"Player '{name}' not found in {self.source_file}")
-        return entry
-
-    def __iter__(self) -> Iterator[AIPlayerEntry]:
-        return iter(self.players.values())
-
-
-@dataclass
-class AITemplateEntry:
-    """A single entry parsed from an <AITemplates> file."""
-
-    name: str
-    raw_expression: str
-    normalized_expression: str
-    source_file: Path
-
-
-@dataclass
-class AITemplateDocument:
-    """A parsed AI Templates XML file containing named template entries."""
-
-    source_file: Path
-    templates: Dict[str, AITemplateEntry] = field(default_factory=dict)
-
-    def get(self, name: str) -> Optional[AITemplateEntry]:
-        return self.templates.get(name)
-
-    def require(self, name: str) -> AITemplateEntry:
-        entry = self.get(name)
-        if entry is None:
-            raise KeyError(f"Template '{name}' not found in {self.source_file}")
-        return entry
-
-    def __iter__(self) -> Iterator[AITemplateEntry]:
-        return iter(self.templates.values())
+    def __iter__(self) -> Iterator[Entry]:
+        return iter(self.entries.values())
 
 
 @dataclass
@@ -167,7 +73,7 @@ class PerceptualEquationLayer:
     """A logical load layer, such as Data or a specific submod layer."""
 
     name: str
-    documents: List[PerceptualEquationDocument] = field(default_factory=list)
+    documents: list[PerceptualEquationDocument] = field(default_factory=list)
 
     def __iter__(self) -> Iterator[PerceptualEquationDocument]:
         return iter(self.documents)
@@ -177,13 +83,13 @@ class PerceptualEquationLayer:
 class PerceptualEquationIndex:
     """Resolved index across ordered layers (later layers override earlier layers)."""
 
-    effective_equations: Dict[str, PerceptualEquation] = field(default_factory=dict)
-    effective_layers: Dict[str, str] = field(default_factory=dict)
-    all_definitions: Dict[str, List[Tuple[str, PerceptualEquation]]] = field(
+    effective_equations: dict[str, PerceptualEquation] = field(default_factory=dict)
+    effective_layers: dict[str, str] = field(default_factory=dict)
+    all_definitions: dict[str, list[tuple[str, PerceptualEquation]]] = field(
         default_factory=dict
     )
 
-    def get(self, equation_name: str) -> Optional[PerceptualEquation]:
+    def get(self, equation_name: str) -> PerceptualEquation | None:
         return self.effective_equations.get(equation_name)
 
     def require(self, equation_name: str) -> PerceptualEquation:
@@ -192,12 +98,12 @@ class PerceptualEquationIndex:
             raise KeyError(f"Equation '{equation_name}' not found in effective index")
         return equation
 
-    def layer_for(self, equation_name: str) -> Optional[str]:
+    def layer_for(self, equation_name: str) -> str | None:
         return self.effective_layers.get(equation_name)
 
     def definitions_for(
         self, equation_name: str
-    ) -> List[Tuple[str, PerceptualEquation]]:
+    ) -> list[tuple[str, PerceptualEquation]]:
         """Return all definitions in load order as (layer_name, equation)."""
         return list(self.all_definitions.get(equation_name, []))
 

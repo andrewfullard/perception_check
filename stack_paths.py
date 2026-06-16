@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from functools import partial
 from pathlib import Path
 
 
@@ -16,13 +15,9 @@ def find_ai_content_folder(data_folder: Path, content_folder: str) -> Path | Non
     return None
 
 
-find_perceptual_equations_folder = partial(
-    find_ai_content_folder,
-    content_folder="PerceptualEquations",
-)
-find_perceptual_equations_folder.__doc__ = (
-    "Find PerceptualEquations in known AI path variants under one Data folder."
-)
+def find_perceptual_equations_folder(data_folder: Path) -> Path | None:
+    """Find PerceptualEquations under one Data folder."""
+    return find_ai_content_folder(data_folder, "PerceptualEquations")
 
 
 def _normalize_selected_layer_names(upper_layers: list[str]) -> list[str]:
@@ -70,12 +65,14 @@ def resolve_stack_layer_content_folders(
     return resolved
 
 
-resolve_stack_layer_folders = partial(
-    resolve_stack_layer_content_folders,
-    content_folder="PerceptualEquations",
-    require_data_layer=True,
-    require_selected_upper_layers=True,
-)
-resolve_stack_layer_folders.__doc__ = (
-    "Resolve root/Data plus up to two user-selected upper layers."
-)
+def resolve_stack_layer_folders(
+    root: Path, upper_layers: list[str]
+) -> list[tuple[str, Path]]:
+    """Resolve root/Data plus user-selected upper layers."""
+    return resolve_stack_layer_content_folders(
+        root=root,
+        upper_layers=upper_layers,
+        content_folder="PerceptualEquations",
+        require_data_layer=True,
+        require_selected_upper_layers=True,
+    )

@@ -3,12 +3,7 @@ from __future__ import annotations
 from functools import partial
 from pathlib import Path
 
-from data_models import (
-    AIPlayerDocument,
-    AIPlayerEntry,
-    AITemplateDocument,
-    AITemplateEntry,
-)
+from data_models import Document, Entry
 from xml_common import (
     extract_structured_entry_text_with_paths,
     parse_documents_folder,
@@ -17,47 +12,35 @@ from xml_common import (
 )
 
 
-def parse_players_file(xml_file: str | Path) -> AIPlayerDocument:
+def parse_players_file(xml_file: str | Path) -> Document:
     """Parse one <AIPlayerType> XML file into one prefixed player entry."""
-    source_file, entries = parse_single_named_entry_text_file(
+    source_file, texts = parse_single_named_entry_text_file(
         xml_file=xml_file,
         expected_root_tag="AIPlayerType",
         name_prefix="Player::",
         name_tag="Name",
         entry_text_extractor=extract_structured_entry_text_with_paths,
     )
-    return AIPlayerDocument(
-        source_file=source_file,
-        players={
-            name: AIPlayerEntry(
-                name=name,
-                raw_expression=normalized_text,
-                normalized_expression=normalized_text,
-                source_file=source_file,
-            )
-            for name, normalized_text in entries.items()
-        },
-    )
+    return _document(source_file, texts, "player")
 
 
-def parse_templates_file(xml_file: str | Path) -> AITemplateDocument:
+def parse_templates_file(xml_file: str | Path) -> Document:
     """Parse one <AITemplates> XML file into prefixed template entries."""
-    source_file, entries = parse_named_entries_text_file(
+    source_file, texts = parse_named_entries_text_file(
         xml_file=xml_file,
         expected_root_tag="AITemplates",
         name_prefix="Template::",
         entry_text_extractor=extract_structured_entry_text_with_paths,
     )
-    return AITemplateDocument(
+    return _document(source_file, texts, "template")
+
+
+def _document(source_file: Path, texts: dict[str, str], entry_type: str) -> Document:
+    return Document(
         source_file=source_file,
-        templates={
-            name: AITemplateEntry(
-                name=name,
-                raw_expression=normalized_text,
-                normalized_expression=normalized_text,
-                source_file=source_file,
-            )
-            for name, normalized_text in entries.items()
+        entries={
+            name: Entry(name, text, text, source_file, entry_type)
+            for name, text in texts.items()
         },
     )
 

@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from perceptual_equations_parser import PerceptualEquationsParser
+from perceptual_equations_parser import build_index_from_folders
 from perceptual_equations_range import PerceptualEquationRangeAnalyzer
 from perceptual_token_bounds import TokenBounds
 
@@ -23,8 +23,7 @@ def test_range_uses_game_token_bounds_and_expression_math(tmp_path: Path) -> Non
         },
     )
 
-    parser = PerceptualEquationsParser()
-    index = parser.build_index_from_folders([("Data", data_dir)])
+    index = build_index_from_folders([("Data", data_dir)])
     analyzer = PerceptualEquationRangeAnalyzer(
         index,
         {
@@ -49,8 +48,7 @@ def test_range_follows_function_token_references(tmp_path: Path) -> None:
         },
     )
 
-    parser = PerceptualEquationsParser()
-    index = parser.build_index_from_folders([("Data", data_dir)])
+    index = build_index_from_folders([("Data", data_dir)])
     analyzer = PerceptualEquationRangeAnalyzer(
         index,
         {
@@ -74,8 +72,7 @@ def test_range_defaults_to_infinite_when_token_bounds_missing(tmp_path: Path) ->
         },
     )
 
-    parser = PerceptualEquationsParser()
-    index = parser.build_index_from_folders([("Data", data_dir)])
+    index = build_index_from_folders([("Data", data_dir)])
     analyzer = PerceptualEquationRangeAnalyzer(index, {})
 
     unknown_range = analyzer.compute_equation_range("UnknownTokenEquation")
@@ -100,8 +97,7 @@ def test_range_uses_final_literal_bounds_for_chained_variable_tokens(
         },
     )
 
-    parser = PerceptualEquationsParser()
-    index = parser.build_index_from_folders([("Data", data_dir)])
+    index = build_index_from_folders([("Data", data_dir)])
     analyzer = PerceptualEquationRangeAnalyzer(
         index,
         {
@@ -125,8 +121,7 @@ def test_range_handles_random_operator_as_rand_function(tmp_path: Path) -> None:
         },
     )
 
-    parser = PerceptualEquationsParser()
-    index = parser.build_index_from_folders([("Data", data_dir)])
+    index = build_index_from_folders([("Data", data_dir)])
     analyzer = PerceptualEquationRangeAnalyzer(index, {})
 
     randomized_range = analyzer.compute_equation_range("Randomized")

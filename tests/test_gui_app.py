@@ -5,13 +5,12 @@ from pathlib import Path
 from tkinter import messagebox
 
 from gui_app import PerceptualEquationsApp
-from data_models import GoalFunctionEntry
+from data_models import Entry
 from gui_app_text_utils import (
     extract_goal_function_link,
     extract_player_template_links,
-    strip_entry_prefix,
 )
-from perceptual_equations_parser import PerceptualEquationsParser
+from perceptual_equations_parser import build_index_from_folders
 from perceptual_equations_range import NumericRange
 
 
@@ -33,6 +32,34 @@ def _app_without_tk() -> PerceptualEquationsApp:
     app.player_display_to_entry = {}
     app.template_display_to_entry = {}
     return app
+
+
+class _DummyVar:
+    def set(self, _value: str) -> None:
+        pass
+
+
+class _DummyListbox:
+    def __init__(self, value: str = "") -> None:
+        self.value = value
+
+    def curselection(self):
+        return (0,)
+
+    def get(self, _index: int) -> str:
+        return self.value
+
+    def selection_clear(self, _start, _end) -> None:
+        pass
+
+    def selection_set(self, _index: int) -> None:
+        pass
+
+    def see(self, _index: int) -> None:
+        pass
+
+    def event_generate(self, _event: str) -> None:
+        pass
 
 
 def _write_equations_xml(path: Path, equations: dict[str, str]) -> None:
@@ -77,18 +104,14 @@ def _write_templates_xml(path: Path, template_name: str, priority: str) -> None:
 
 
 def test_extract_goal_function_link_normalizes_goal_and_function_names() -> None:
-    app = _app_without_tk()
-    entry = GoalFunctionEntry(
+    entry = Entry(
         name="GoalFunction::Build",
         raw_expression="Goal=Conquer\nFunction=Function_Strength_Check.Evaluate",
         normalized_expression="Goal=Conquer\nFunction=Function_Strength_Check.Evaluate",
         source_file=None,
     )
 
-    goal_name, equation_name = extract_goal_function_link(
-        entry.normalized_expression,
-        app._extract_function_name,
-    )
+    goal_name, equation_name = extract_goal_function_link(entry.normalized_expression)
 
     assert goal_name == "Goal::Conquer"
     assert equation_name == "Strength_Check"
@@ -477,30 +500,13 @@ def test_select_entry_by_name_displays_hidden_goal_entry() -> None:
     displayed: list[str] = []
     shown_messages: list[str] = []
 
-    class _DummySearchVar:
-        def set(self, _value: str) -> None:
-            pass
-
-    class _DummyListbox:
-        def selection_clear(self, _start, _end) -> None:
-            pass
-
-        def selection_set(self, _index: int) -> None:
-            pass
-
-        def see(self, _index: int) -> None:
-            pass
-
-        def event_generate(self, _event: str) -> None:
-            pass
-
     hidden_goal = SimpleNamespace(name="Goal::Conquer")
     app.filtered_names = []
     app.index = SimpleNamespace(
         get=lambda name: hidden_goal if name == "Goal::Conquer" else None
     )
     app.view = SimpleNamespace(
-        search_var=_DummySearchVar(),
+        search_var=_DummyVar(),
         names_listbox=_DummyListbox(),
     )
     app._refresh_list = MethodType(lambda self: None, app)
@@ -525,30 +531,13 @@ def test_select_entry_by_name_displays_hidden_player_entry() -> None:
     displayed: list[str] = []
     shown_messages: list[str] = []
 
-    class _DummySearchVar:
-        def set(self, _value: str) -> None:
-            pass
-
-    class _DummyListbox:
-        def selection_clear(self, _start, _end) -> None:
-            pass
-
-        def selection_set(self, _index: int) -> None:
-            pass
-
-        def see(self, _index: int) -> None:
-            pass
-
-        def event_generate(self, _event: str) -> None:
-            pass
-
     hidden_player = SimpleNamespace(name="Player::BasicEmpire")
     app.filtered_names = []
     app.index = SimpleNamespace(
         get=lambda name: hidden_player if name == "Player::BasicEmpire" else None
     )
     app.view = SimpleNamespace(
-        search_var=_DummySearchVar(),
+        search_var=_DummyVar(),
         names_listbox=_DummyListbox(),
     )
     app._refresh_list = MethodType(lambda self: None, app)
@@ -573,23 +562,6 @@ def test_select_entry_by_name_displays_hidden_template_entry() -> None:
     displayed: list[str] = []
     shown_messages: list[str] = []
 
-    class _DummySearchVar:
-        def set(self, _value: str) -> None:
-            pass
-
-    class _DummyListbox:
-        def selection_clear(self, _start, _end) -> None:
-            pass
-
-        def selection_set(self, _index: int) -> None:
-            pass
-
-        def see(self, _index: int) -> None:
-            pass
-
-        def event_generate(self, _event: str) -> None:
-            pass
-
     hidden_template = SimpleNamespace(name="Template::Basic_Empire_Default")
     app.filtered_names = []
     app.index = SimpleNamespace(
@@ -598,7 +570,7 @@ def test_select_entry_by_name_displays_hidden_template_entry() -> None:
         )
     )
     app.view = SimpleNamespace(
-        search_var=_DummySearchVar(),
+        search_var=_DummyVar(),
         names_listbox=_DummyListbox(),
     )
     app._refresh_list = MethodType(lambda self: None, app)
@@ -624,24 +596,13 @@ def test_on_goal_selection_changed_displays_selected_goal_directly() -> None:
     app = _app_without_tk()
     displayed: list[str] = []
 
-    class _DummyGoalsListbox:
-        def curselection(self):
-            return (0,)
-
-        def get(self, _index: int) -> str:
-            return "Goal::Conquer"
-
-    class _DummyNamesListbox:
-        def selection_clear(self, _start, _end) -> None:
-            pass
-
     selected_goal = SimpleNamespace(name="Goal::Conquer")
     app.index = SimpleNamespace(
         get=lambda name: selected_goal if name == "Goal::Conquer" else None
     )
     app.view = SimpleNamespace(
-        goals_listbox=_DummyGoalsListbox(),
-        names_listbox=_DummyNamesListbox(),
+        goals_listbox=_DummyListbox("Goal::Conquer"),
+        names_listbox=_DummyListbox(),
     )
     app._display_equation = MethodType(
         lambda self, equation: displayed.append(equation.name),
@@ -657,25 +618,14 @@ def test_on_goal_selection_changed_resolves_display_name_without_prefix() -> Non
     app = _app_without_tk()
     displayed: list[str] = []
 
-    class _DummyGoalsListbox:
-        def curselection(self):
-            return (0,)
-
-        def get(self, _index: int) -> str:
-            return "Conquer"
-
-    class _DummyNamesListbox:
-        def selection_clear(self, _start, _end) -> None:
-            pass
-
     selected_goal = SimpleNamespace(name="Goal::Conquer")
     app.goal_display_to_entry = {"Conquer": "Goal::Conquer"}
     app.index = SimpleNamespace(
         get=lambda name: selected_goal if name == "Goal::Conquer" else None
     )
     app.view = SimpleNamespace(
-        goals_listbox=_DummyGoalsListbox(),
-        names_listbox=_DummyNamesListbox(),
+        goals_listbox=_DummyListbox("Conquer"),
+        names_listbox=_DummyListbox(),
     )
     app._display_equation = MethodType(
         lambda self, equation: displayed.append(equation.name),
@@ -691,24 +641,13 @@ def test_on_player_selection_changed_displays_selected_player_directly() -> None
     app = _app_without_tk()
     displayed: list[str] = []
 
-    class _DummyPlayersListbox:
-        def curselection(self):
-            return (0,)
-
-        def get(self, _index: int) -> str:
-            return "Player::BasicEmpire"
-
-    class _DummyNamesListbox:
-        def selection_clear(self, _start, _end) -> None:
-            pass
-
     selected_player = SimpleNamespace(name="Player::BasicEmpire")
     app.index = SimpleNamespace(
         get=lambda name: selected_player if name == "Player::BasicEmpire" else None
     )
     app.view = SimpleNamespace(
-        players_listbox=_DummyPlayersListbox(),
-        names_listbox=_DummyNamesListbox(),
+        players_listbox=_DummyListbox("Player::BasicEmpire"),
+        names_listbox=_DummyListbox(),
     )
     app._display_equation = MethodType(
         lambda self, equation: displayed.append(equation.name),
@@ -724,25 +663,14 @@ def test_on_player_selection_changed_resolves_display_name_without_prefix() -> N
     app = _app_without_tk()
     displayed: list[str] = []
 
-    class _DummyPlayersListbox:
-        def curselection(self):
-            return (0,)
-
-        def get(self, _index: int) -> str:
-            return "BasicEmpire"
-
-    class _DummyNamesListbox:
-        def selection_clear(self, _start, _end) -> None:
-            pass
-
     selected_player = SimpleNamespace(name="Player::BasicEmpire")
     app.player_display_to_entry = {"BasicEmpire": "Player::BasicEmpire"}
     app.index = SimpleNamespace(
         get=lambda name: selected_player if name == "Player::BasicEmpire" else None
     )
     app.view = SimpleNamespace(
-        players_listbox=_DummyPlayersListbox(),
-        names_listbox=_DummyNamesListbox(),
+        players_listbox=_DummyListbox("BasicEmpire"),
+        names_listbox=_DummyListbox(),
     )
     app._display_equation = MethodType(
         lambda self, equation: displayed.append(equation.name),
@@ -758,17 +686,6 @@ def test_on_template_selection_changed_displays_selected_template_directly() -> 
     app = _app_without_tk()
     displayed: list[str] = []
 
-    class _DummyTemplatesListbox:
-        def curselection(self):
-            return (0,)
-
-        def get(self, _index: int) -> str:
-            return "Template::Basic_Empire_Default"
-
-    class _DummyNamesListbox:
-        def selection_clear(self, _start, _end) -> None:
-            pass
-
     selected_template = SimpleNamespace(name="Template::Basic_Empire_Default")
     app.index = SimpleNamespace(
         get=lambda name: (
@@ -776,8 +693,8 @@ def test_on_template_selection_changed_displays_selected_template_directly() -> 
         )
     )
     app.view = SimpleNamespace(
-        templates_listbox=_DummyTemplatesListbox(),
-        names_listbox=_DummyNamesListbox(),
+        templates_listbox=_DummyListbox("Template::Basic_Empire_Default"),
+        names_listbox=_DummyListbox(),
     )
     app._display_equation = MethodType(
         lambda self, equation: displayed.append(equation.name),
@@ -793,17 +710,6 @@ def test_on_template_selection_changed_resolves_display_name_without_prefix() ->
     app = _app_without_tk()
     displayed: list[str] = []
 
-    class _DummyTemplatesListbox:
-        def curselection(self):
-            return (0,)
-
-        def get(self, _index: int) -> str:
-            return "Basic_Empire_Default"
-
-    class _DummyNamesListbox:
-        def selection_clear(self, _start, _end) -> None:
-            pass
-
     selected_template = SimpleNamespace(name="Template::Basic_Empire_Default")
     app.template_display_to_entry = {
         "Basic_Empire_Default": "Template::Basic_Empire_Default"
@@ -814,8 +720,8 @@ def test_on_template_selection_changed_resolves_display_name_without_prefix() ->
         )
     )
     app.view = SimpleNamespace(
-        templates_listbox=_DummyTemplatesListbox(),
-        names_listbox=_DummyNamesListbox(),
+        templates_listbox=_DummyListbox("Basic_Empire_Default"),
+        names_listbox=_DummyListbox(),
     )
     app._display_equation = MethodType(
         lambda self, equation: displayed.append(equation.name),
@@ -825,26 +731,6 @@ def test_on_template_selection_changed_resolves_display_name_without_prefix() ->
     app._on_template_selection_changed(None)
 
     assert displayed == ["Template::Basic_Empire_Default"]
-
-
-def test_goal_display_name_strips_goal_prefix() -> None:
-    assert strip_entry_prefix("Goal::Conquer", "Goal::") == "Conquer"
-    assert strip_entry_prefix("NoPrefix", "Goal::") == "NoPrefix"
-
-
-def test_player_display_name_strips_player_prefix() -> None:
-    assert strip_entry_prefix("Player::BasicEmpire", "Player::") == "BasicEmpire"
-    assert strip_entry_prefix("NoPrefix", "Player::") == "NoPrefix"
-
-
-def test_template_display_name_strips_template_prefix() -> None:
-    assert (
-        strip_entry_prefix("Template::Basic_Empire_Default", "Template::")
-        == "Basic_Empire_Default"
-    )
-    assert strip_entry_prefix("NoPrefix", "Template::") == "NoPrefix"
-
-
 def test_merge_non_equation_data_reads_players_templates_with_stack_order(
     tmp_path: Path,
 ) -> None:
@@ -869,8 +755,7 @@ def test_merge_non_equation_data_reads_players_templates_with_stack_order(
     _write_templates_xml(fotr_templates / "templates.xml", "Basic_Empire_Default", "2")
 
     app = _app_without_tk()
-    app.parser = PerceptualEquationsParser()
-    app.index = app.parser.build_index_from_folders([("Data", data_eq)])
+    app.index = build_index_from_folders([("Data", data_eq)])
 
     app._merge_non_equation_data_into_index(root, ["FotR"])
 

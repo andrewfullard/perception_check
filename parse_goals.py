@@ -3,56 +3,39 @@ from __future__ import annotations
 from functools import partial
 from pathlib import Path
 
-from data_models import (
-    GoalDocument,
-    GoalEntry,
-    GoalFunctionDocument,
-    GoalFunctionEntry,
-)
+from data_models import Document, Entry
 from xml_common import (
     parse_documents_folder,
     parse_named_entries_text_file,
 )
 
 
-def parse_goal_functions_file(xml_file: str | Path) -> GoalFunctionDocument:
+def parse_goal_functions_file(xml_file: str | Path) -> Document:
     """Parse one <FunctionSet> XML file into prefixed entries."""
-    source_file, entries = parse_named_entries_text_file(
+    source_file, texts = parse_named_entries_text_file(
         xml_file=xml_file,
         expected_root_tag="FunctionSet",
         name_prefix="GoalFunction::",
     )
-    return GoalFunctionDocument(
-        source_file=source_file,
-        goal_functions={
-            name: GoalFunctionEntry(
-                name=name,
-                raw_expression=normalized_text,
-                normalized_expression=normalized_text,
-                source_file=source_file,
-            )
-            for name, normalized_text in entries.items()
-        },
-    )
+    return _document(source_file, texts, "goal_function")
 
 
-def parse_goals_file(xml_file: str | Path) -> GoalDocument:
+def parse_goals_file(xml_file: str | Path) -> Document:
     """Parse one <Goals> XML file into prefixed entries."""
-    source_file, entries = parse_named_entries_text_file(
+    source_file, texts = parse_named_entries_text_file(
         xml_file=xml_file,
         expected_root_tag="Goals",
         name_prefix="Goal::",
     )
-    return GoalDocument(
+    return _document(source_file, texts, "goal")
+
+
+def _document(source_file: Path, texts: dict[str, str], entry_type: str) -> Document:
+    return Document(
         source_file=source_file,
-        goals={
-            name: GoalEntry(
-                name=name,
-                raw_expression=normalized_text,
-                normalized_expression=normalized_text,
-                source_file=source_file,
-            )
-            for name, normalized_text in entries.items()
+        entries={
+            name: Entry(name, text, text, source_file, entry_type)
+            for name, text in texts.items()
         },
     )
 
