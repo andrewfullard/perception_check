@@ -4,14 +4,14 @@ from pathlib import Path
 
 from tkinter import messagebox
 
-from gui_app import PerceptualEquationsApp
-from data_models import Entry
-from gui_app_text_utils import (
+from gui.app import PerceptualEquationsApp
+from perception.models import Entry
+from perception.entry_text import (
     extract_goal_function_link,
     extract_player_template_links,
 )
-from perceptual_equations_parser import build_index_from_folders
-from perceptual_equations_range import NumericRange
+from perception.equation_index import build_index_from_folders
+from perception.equation_ranges import NumericRange
 
 
 def _app_without_tk() -> PerceptualEquationsApp:

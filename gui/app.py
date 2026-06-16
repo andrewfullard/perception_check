@@ -8,25 +8,25 @@ import tkinter as tk
 from tkinter import filedialog, messagebox
 from typing import Callable
 
-from data_models import Document, Entry
-from gui_app_text_utils import (
+from perception.models import Document, Entry
+from perception.entry_text import (
     extract_function_name,
     extract_goal_function_link,
     extract_player_template_links,
     normalize_goal_name,
     parse_structured_fields,
 )
-from gui_view import PerceptualEquationsView
-from parse_goals import parse_goal_functions_folder, parse_goals_folder
-from parse_players import parse_players_folder, parse_templates_folder
-from perceptual_equations_parser import (
+from gui.view import PerceptualEquationsView
+from parsers.goals import parse_goal_functions_folder, parse_goals_folder
+from parsers.players import parse_players_folder, parse_templates_folder
+from perception.equation_index import (
     PerceptualEquation,
     PerceptualEquationIndex,
     build_index_from_folders,
 )
-from perceptual_equations_range import PerceptualEquationRangeAnalyzer
-from perceptual_token_bounds import TokenBounds, clamp_token_value, load_token_bounds
-from stack_paths import (
+from perception.equation_ranges import PerceptualEquationRangeAnalyzer
+from perception.token_bounds import TokenBounds, clamp_token_value, load_token_bounds
+from perception.stack_paths import (
     resolve_stack_layer_content_folders,
     resolve_stack_layer_folders,
 )

@@ -1,8 +1,8 @@
 from pathlib import Path
 
-from perceptual_equations_parser import build_index_from_folders
-from perceptual_equations_range import PerceptualEquationRangeAnalyzer
-from perceptual_token_bounds import TokenBounds
+from perception.equation_index import build_index_from_folders
+from perception.equation_ranges import PerceptualEquationRangeAnalyzer
+from perception.token_bounds import TokenBounds
 
 
 def _write_equations_xml(path: Path, equations: dict[str, str]) -> None:

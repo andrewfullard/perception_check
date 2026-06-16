@@ -2,7 +2,7 @@ from pathlib import Path
 
 import pytest
 
-from stack_paths import (
+from perception.stack_paths import (
     find_ai_content_folder,
     find_perceptual_equations_folder,
     resolve_stack_layer_content_folders,

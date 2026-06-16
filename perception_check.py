@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import tkinter as tk
-from gui_app import PerceptualEquationsApp
+from gui.app import PerceptualEquationsApp
 
 
 def main() -> None:

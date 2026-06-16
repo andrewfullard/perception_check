@@ -2,12 +2,12 @@ from pathlib import Path
 
 import pytest
 
-from parse_equations import (
+from parsers.equations import (
     parse_equations_file,
     parse_equations_folder,
     parse_equations_folder_recursive,
 )
-from perceptual_equations_parser import build_index_from_folders, parse_layer
+from perception.equation_index import build_index_from_folders, parse_layer
 
 
 def _write_equations_xml(path: Path, equations: dict[str, str]) -> None:

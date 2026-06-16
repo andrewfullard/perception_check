@@ -3,8 +3,8 @@ from __future__ import annotations
 from functools import partial
 from pathlib import Path
 
-from data_models import PerceptualEquation, PerceptualEquationDocument
-from xml_common import (
+from perception.models import PerceptualEquation, PerceptualEquationDocument
+from perception.xml_utils import (
     extract_raw_expression,
     normalize_expression,
     parse_documents_folder,

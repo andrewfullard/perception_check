@@ -3,12 +3,12 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Iterable
 
-from data_models import (
+from perception.models import (
     PerceptualEquation,
     PerceptualEquationIndex,
     PerceptualEquationLayer,
 )
-from parse_equations import parse_equations_folder_recursive
+from parsers.equations import parse_equations_folder_recursive
 
 
 def parse_layer(
@@ -21,7 +21,7 @@ def parse_layer(
     if recursive:
         documents = parse_equations_folder_recursive(folder, pattern=pattern)
     else:
-        from parse_equations import parse_equations_folder
+        from parsers.equations import parse_equations_folder
 
         documents = parse_equations_folder(folder, pattern=pattern)
 

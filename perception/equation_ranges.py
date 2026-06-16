@@ -5,9 +5,9 @@ from dataclasses import dataclass
 import math
 import re
 
-from perceptual_equations_parser import PerceptualEquationIndex
-from perceptual_token_bounds import TokenBounds, get_token_bounds
-from gui_app_text_utils import extract_function_name
+from perception.equation_index import PerceptualEquationIndex
+from perception.token_bounds import TokenBounds, get_token_bounds
+from perception.entry_text import extract_function_name
 
 
 _EDITABLE_TOKEN_PATTERN = re.compile(

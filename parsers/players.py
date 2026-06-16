@@ -3,8 +3,8 @@ from __future__ import annotations
 from functools import partial
 from pathlib import Path
 
-from data_models import Document, Entry
-from xml_common import (
+from perception.models import Document, Entry
+from perception.xml_utils import (
     extract_structured_entry_text_with_paths,
     parse_documents_folder,
     parse_named_entries_text_file,

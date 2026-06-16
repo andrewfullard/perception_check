@@ -2,14 +2,14 @@ from pathlib import Path
 
 import pytest
 
-from data_models import Document
-from parse_goals import (
+from perception.models import Document
+from parsers.goals import (
     parse_goal_functions_file,
     parse_goal_functions_folder,
     parse_goals_file,
     parse_goals_folder,
 )
-from parse_players import (
+from parsers.players import (
     parse_players_file,
     parse_players_folder,
     parse_templates_file,

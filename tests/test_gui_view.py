@@ -1,4 +1,4 @@
-from gui_view import PerceptualEquationsView
+from gui.view import PerceptualEquationsView
 
 
 def _view_without_tk() -> PerceptualEquationsView:

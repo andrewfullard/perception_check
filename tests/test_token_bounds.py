@@ -2,7 +2,7 @@ from pathlib import Path
 
 import pytest
 
-from perceptual_token_bounds import (
+from perception.token_bounds import (
     TokenBounds,
     clamp_token_value,
     get_token_bounds,
