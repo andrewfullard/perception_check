@@ -3,7 +3,7 @@ from __future__ import annotations
 from functools import partial
 from pathlib import Path
 
-from perception.models import Document, Entry
+from perception.models import Document, make_document
 from perception.xml_utils import (
     parse_documents_folder,
     parse_named_entries_text_file,
@@ -17,7 +17,7 @@ def parse_goal_functions_file(xml_file: str | Path) -> Document:
         expected_root_tag="FunctionSet",
         name_prefix="GoalFunction::",
     )
-    return _document(source_file, texts, "goal_function")
+    return make_document(source_file, texts, "goal_function")
 
 
 def parse_goals_file(xml_file: str | Path) -> Document:
@@ -27,17 +27,7 @@ def parse_goals_file(xml_file: str | Path) -> Document:
         expected_root_tag="Goals",
         name_prefix="Goal::",
     )
-    return _document(source_file, texts, "goal")
-
-
-def _document(source_file: Path, texts: dict[str, str], entry_type: str) -> Document:
-    return Document(
-        source_file=source_file,
-        entries={
-            name: Entry(name, text, text, source_file, entry_type)
-            for name, text in texts.items()
-        },
-    )
+    return make_document(source_file, texts, "goal")
 
 
 parse_goal_functions_folder = partial(

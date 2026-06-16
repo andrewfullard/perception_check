@@ -68,6 +68,16 @@ class Document:
         return iter(self.entries.values())
 
 
+def make_document(source_file: Path, texts: dict[str, str], entry_type: str) -> Document:
+    return Document(
+        source_file=source_file,
+        entries={
+            name: Entry(name, text, text, source_file, entry_type)
+            for name, text in texts.items()
+        },
+    )
+
+
 @dataclass
 class PerceptualEquationLayer:
     """A logical load layer, such as Data or a specific submod layer."""

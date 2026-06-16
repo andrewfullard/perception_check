@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Callable, Dict, List, TypeVar, Tuple
+from typing import Callable, TypeVar
 import re
 import xml.etree.ElementTree as ET
 
@@ -31,7 +31,7 @@ def extract_raw_expression(element: ET.Element) -> str:
 
 def extract_structured_entry_text(entry_element: ET.Element) -> str:
     """Return key/value text for non-equation AI nodes, one field per line."""
-    fields: List[str] = []
+    fields: list[str] = []
 
     for child in entry_element:
         if not isinstance(child.tag, str):
@@ -53,9 +53,9 @@ def extract_structured_entry_text_with_paths(
     path_separator: str = "/",
 ) -> str:
     """Return key/value text including nested tag paths for non-equation nodes."""
-    fields: List[str] = []
+    fields: list[str] = []
 
-    def _walk(node: ET.Element, path: List[str]) -> None:
+    def _walk(node: ET.Element, path: list[str]) -> None:
         children = [child for child in node if isinstance(child.tag, str)]
         if children:
             for child in children:
@@ -85,7 +85,7 @@ def parse_named_entries_text_file(
     expected_root_tag: str,
     name_prefix: str,
     entry_text_extractor: Callable[[ET.Element], str] = extract_structured_entry_text,
-) -> Tuple[Path, Dict[str, str]]:
+) -> tuple[Path, dict[str, str]]:
     """Parse direct root children into a prefixed name->summary text map."""
     xml_path = Path(xml_file)
     tree = parse_xml_file(xml_path)
@@ -96,7 +96,7 @@ def parse_named_entries_text_file(
             f"Expected root tag '{expected_root_tag}' in {xml_path}, found '{root.tag}'"
         )
 
-    entries: Dict[str, str] = {}
+    entries: dict[str, str] = {}
 
     for child in root:
         if not isinstance(child.tag, str):
@@ -115,7 +115,7 @@ def parse_single_named_entry_text_file(
     name_prefix: str,
     name_tag: str = "Name",
     entry_text_extractor: Callable[[ET.Element], str] = extract_structured_entry_text,
-) -> Tuple[Path, Dict[str, str]]:
+) -> tuple[Path, dict[str, str]]:
     """Parse one XML root as a single prefixed name->summary text entry."""
     xml_path = Path(xml_file)
     tree = parse_xml_file(xml_path)
@@ -140,10 +140,10 @@ def parse_documents_folder(
     folder: str | Path,
     parse_document: Callable[[Path], DocumentT],
     pattern: str = "*.xml",
-) -> List[DocumentT]:
+) -> list[DocumentT]:
     """Parse all matching XML files in one folder, non-recursively."""
     folder_path = Path(folder)
-    documents: List[DocumentT] = []
+    documents: list[DocumentT] = []
 
     for xml_path in sorted(folder_path.glob(pattern)):
         if xml_path.is_file():
