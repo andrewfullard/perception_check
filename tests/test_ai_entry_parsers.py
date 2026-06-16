@@ -3,17 +3,14 @@ from pathlib import Path
 import pytest
 
 from perception.models import Document
+from perception.xml_utils import parse_documents_folder
 from parsers.goals import (
     parse_goal_functions_file,
-    parse_goal_functions_folder,
     parse_goals_file,
-    parse_goals_folder,
 )
 from parsers.players import (
     parse_players_file,
-    parse_players_folder,
     parse_templates_file,
-    parse_templates_folder,
 )
 
 
@@ -76,7 +73,7 @@ def test_parse_goal_functions_file_produces_prefixed_entries(tmp_path: Path) -> 
     document = parse_goal_functions_file(xml_file)
     assert isinstance(document, Document)
 
-    entry = document.require("GoalFunction::Build_Space_Forces")
+    entry = document.entries["GoalFunction::Build_Space_Forces"]
     assert entry.entry_type == "goal_function"
     assert entry.source_file == xml_file
     assert entry.normalized_expression == (
@@ -99,7 +96,7 @@ def test_parse_goals_file_produces_prefixed_entries(tmp_path: Path) -> None:
     document = parse_goals_file(xml_file)
     assert isinstance(document, Document)
 
-    entry = document.require("Goal::Conquer_Pirate")
+    entry = document.entries["Goal::Conquer_Pirate"]
     assert entry.entry_type == "goal"
     assert entry.source_file == xml_file
     assert entry.normalized_expression == "GameMode=Galactic\nCategory=Offensive"
@@ -135,15 +132,17 @@ def test_parse_goal_folders_collect_documents(tmp_path: Path) -> None:
         {"GoalA": {"Category": "Always"}},
     )
 
-    goal_function_docs = parse_goal_functions_folder(goal_functions_dir)
-    goal_docs = parse_goals_folder(goals_dir)
+    goal_function_docs = parse_documents_folder(
+        goal_functions_dir, parse_goal_functions_file
+    )
+    goal_docs = parse_documents_folder(goals_dir, parse_goals_file)
 
     assert len(goal_function_docs) == 1
     assert len(goal_docs) == 1
     assert isinstance(goal_function_docs[0], Document)
     assert isinstance(goal_docs[0], Document)
-    assert goal_function_docs[0].get("GoalFunction::One") is not None
-    assert goal_docs[0].get("Goal::GoalA") is not None
+    assert "GoalFunction::One" in goal_function_docs[0].entries
+    assert "Goal::GoalA" in goal_docs[0].entries
 
 
 def test_parse_players_file_produces_prefixed_single_entry(tmp_path: Path) -> None:
@@ -161,7 +160,7 @@ def test_parse_players_file_produces_prefixed_single_entry(tmp_path: Path) -> No
     document = parse_players_file(xml_file)
     assert isinstance(document, Document)
 
-    entry = document.require("Player::BasicEmpire")
+    entry = document.entries["Player::BasicEmpire"]
     assert entry.entry_type == "player"
     assert entry.source_file == xml_file
     assert "Name=BasicEmpire" in entry.normalized_expression
@@ -196,7 +195,7 @@ def test_parse_templates_file_produces_prefixed_entries(tmp_path: Path) -> None:
     document = parse_templates_file(xml_file)
     assert isinstance(document, Document)
 
-    entry = document.require("Template::Basic_Empire_Default")
+    entry = document.entries["Template::Basic_Empire_Default"]
     assert entry.entry_type == "template"
     assert entry.source_file == xml_file
     assert entry.normalized_expression == "Priority=1\nTrigger=One"
@@ -219,7 +218,7 @@ def test_parse_templates_file_preserves_nested_tag_paths(tmp_path: Path) -> None
     )
 
     document = parse_templates_file(xml_file)
-    entry = document.require("Template::Basic_Empire_Default")
+    entry = document.entries["Template::Basic_Empire_Default"]
 
     assert "Turn_Off/Goals=Goal_1 Goal_2" in entry.normalized_expression
 
@@ -240,12 +239,12 @@ def test_parse_players_and_templates_folders_collect_documents(tmp_path: Path) -
         {"Basic_Empire_Default": {"Priority": "1"}},
     )
 
-    player_docs = parse_players_folder(players_dir)
-    template_docs = parse_templates_folder(templates_dir)
+    player_docs = parse_documents_folder(players_dir, parse_players_file)
+    template_docs = parse_documents_folder(templates_dir, parse_templates_file)
 
     assert len(player_docs) == 1
     assert len(template_docs) == 1
     assert isinstance(player_docs[0], Document)
     assert isinstance(template_docs[0], Document)
-    assert player_docs[0].get("Player::BasicEmpire") is not None
-    assert template_docs[0].get("Template::Basic_Empire_Default") is not None
+    assert "Player::BasicEmpire" in player_docs[0].entries
+    assert "Template::Basic_Empire_Default" in template_docs[0].entries

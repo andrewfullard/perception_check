@@ -1,13 +1,11 @@
 from __future__ import annotations
 
-from functools import partial
 from pathlib import Path
 
 from perception.models import PerceptualEquation, PerceptualEquationDocument
 from perception.xml_utils import (
     extract_raw_expression,
     normalize_expression,
-    parse_documents_folder,
     parse_xml_file,
 )
 
@@ -39,14 +37,6 @@ def parse_equations_file(xml_file: str | Path) -> PerceptualEquationDocument:
         equations[equation.name] = equation
 
     return PerceptualEquationDocument(source_file=xml_path, equations=equations)
-
-
-parse_equations_folder = partial(
-    parse_documents_folder,
-    parse_document=parse_equations_file,
-)
-parse_equations_folder.__doc__ = "Parse all equation XML files in a folder (non-recursive)."
-
 
 def parse_equations_folder_recursive(
     folder: str | Path, pattern: str = "*.xml"

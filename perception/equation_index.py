@@ -5,8 +5,8 @@ from typing import Iterable
 
 from perception.models import (
     PerceptualEquation,
+    PerceptualEquationDocument,
     PerceptualEquationIndex,
-    PerceptualEquationLayer,
 )
 from perception.equation_validator import (
     collect_equation_validation_errors,
@@ -14,7 +14,8 @@ from perception.equation_validator import (
     load_perception_token_names,
     load_script_evaluator_names,
 )
-from parsers.equations import parse_equations_folder_recursive
+from parsers.equations import parse_equations_file, parse_equations_folder_recursive
+from perception.xml_utils import parse_documents_folder
 
 
 def parse_layer(
@@ -22,31 +23,30 @@ def parse_layer(
     folder: str | Path,
     pattern: str = "*.xml",
     recursive: bool = False,
-) -> PerceptualEquationLayer:
+) -> tuple[str, list[PerceptualEquationDocument]]:
     """Parse one logical load layer and validate in-layer uniqueness."""
     if recursive:
         documents = parse_equations_folder_recursive(folder, pattern=pattern)
     else:
-        from parsers.equations import parse_equations_folder
+        documents = parse_documents_folder(folder, parse_equations_file, pattern)
 
-        documents = parse_equations_folder(folder, pattern=pattern)
-
-    layer = PerceptualEquationLayer(name=name, documents=documents)
-    _validate_unique_within_layer(layer)
-    return layer
+    _validate_unique_within_layer(name, documents)
+    return name, documents
 
 
-def build_index(layers: Iterable[PerceptualEquationLayer]) -> PerceptualEquationIndex:
+def build_index(
+    layers: Iterable[tuple[str, list[PerceptualEquationDocument]]]
+) -> PerceptualEquationIndex:
     """Build an effective equation index from ordered layers."""
     index = PerceptualEquationIndex()
-    for layer in layers:
-        for document in layer:
+    for layer_name, documents in layers:
+        for document in documents:
             for equation in document:
                 index.all_definitions.setdefault(equation.name, []).append(
-                    (layer.name, equation)
+                    (layer_name, equation)
                 )
                 index.effective_equations[equation.name] = equation
-                index.effective_layers[equation.name] = layer.name
+                index.effective_layers[equation.name] = layer_name
     return index
 
 
@@ -71,12 +71,14 @@ def build_index_from_folders(
     return index
 
 
-def _validate_unique_within_layer(layer: PerceptualEquationLayer) -> None:
+def _validate_unique_within_layer(
+    layer_name: str, documents: list[PerceptualEquationDocument]
+) -> None:
     """Ensure equation names are unique inside one load layer."""
     seen: dict[str, Path] = {}
     duplicates: list[str] = []
 
-    for document in layer:
+    for document in documents:
         for equation in document:
             prior = seen.get(equation.name)
             if prior is None:
@@ -89,7 +91,7 @@ def _validate_unique_within_layer(layer: PerceptualEquationLayer) -> None:
     if duplicates:
         duplicate_list = ", ".join(sorted(set(duplicates)))
         raise ValueError(
-            f"Duplicate equation names found within layer '{layer.name}': "
+            f"Duplicate equation names found within layer '{layer_name}': "
             f"{duplicate_list}"
         )
 

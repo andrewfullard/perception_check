@@ -4,10 +4,10 @@ import pytest
 
 from parsers.equations import (
     parse_equations_file,
-    parse_equations_folder,
     parse_equations_folder_recursive,
 )
 from perception.equation_index import build_index_from_folders, parse_layer
+from perception.xml_utils import parse_documents_folder
 
 
 def _write_equations_xml(path: Path, equations: dict[str, str]) -> None:
@@ -80,12 +80,12 @@ def test_parse_file_creates_equation_objects_with_raw_and_normalized_text(
     assert document.source_file == xml_file
     assert len(document.equations) == 2
 
-    difficulty = document.require("DisplayDifficulty")
+    difficulty = document.equations["DisplayDifficulty"]
     assert difficulty.source_file == xml_file
     assert "\n" in difficulty.raw_expression
     assert difficulty.normalized_expression == "0 + 2.0"
 
-    campaign = document.require("IsCampaign")
+    campaign = document.equations["IsCampaign"]
     assert campaign.normalized_expression == "Game.IsCampaignGame"
 
 
@@ -121,7 +121,7 @@ def test_parse_folder_and_recursive_modes(tmp_path: Path) -> None:
     _write_equations_xml(top_file, {"TopOnly": "1"})
     _write_equations_xml(nested_file, {"NestedOnly": "2"})
 
-    non_recursive_docs = parse_equations_folder(tmp_path)
+    non_recursive_docs = parse_documents_folder(tmp_path, parse_equations_file)
     recursive_docs = parse_equations_folder_recursive(tmp_path)
 
     assert [doc.source_file.name for doc in non_recursive_docs] == ["top.xml"]

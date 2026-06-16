@@ -22,17 +22,6 @@ class PerceptualEquationDocument:
     source_file: Path
     equations: dict[str, PerceptualEquation] = field(default_factory=dict)
 
-    def get(self, equation_name: str) -> PerceptualEquation | None:
-        return self.equations.get(equation_name)
-
-    def require(self, equation_name: str) -> PerceptualEquation:
-        equation = self.get(equation_name)
-        if equation is None:
-            raise KeyError(
-                f"Equation '{equation_name}' not found in {self.source_file}"
-            )
-        return equation
-
     def __iter__(self) -> Iterator[PerceptualEquation]:
         return iter(self.equations.values())
 
@@ -55,15 +44,6 @@ class Document:
     source_file: Path
     entries: dict[str, Entry] = field(default_factory=dict)
 
-    def get(self, name: str) -> Entry | None:
-        return self.entries.get(name)
-
-    def require(self, name: str) -> Entry:
-        entry = self.get(name)
-        if entry is None:
-            raise KeyError(f"Entry '{name}' not found in {self.source_file}")
-        return entry
-
     def __iter__(self) -> Iterator[Entry]:
         return iter(self.entries.values())
 
@@ -76,17 +56,6 @@ def make_document(source_file: Path, texts: dict[str, str], entry_type: str) -> 
             for name, text in texts.items()
         },
     )
-
-
-@dataclass
-class PerceptualEquationLayer:
-    """A logical load layer, such as Data or a specific submod layer."""
-
-    name: str
-    documents: list[PerceptualEquationDocument] = field(default_factory=list)
-
-    def __iter__(self) -> Iterator[PerceptualEquationDocument]:
-        return iter(self.documents)
 
 
 @dataclass

@@ -3,21 +3,12 @@ from __future__ import annotations
 import ast
 from dataclasses import dataclass
 import math
-import re
 
 from perception.equation_index import PerceptualEquationIndex
+from perception.expression_utils import TOKEN_PATTERN, normalize_for_eval
 from perception.token_bounds import TokenBounds, get_token_bounds
 from perception.entry_text import extract_function_name
 
-
-_EDITABLE_TOKEN_PATTERN = re.compile(
-    r"(?:(?:Variable[\w\.]*)|(?:Game\.[\w\.]*)|(?:Function_[\w\.]*)|(?:Script_[\w\.]*))"
-    r"(?:\s*\{[^}]*\})?"
-)
-
-_RANDOM_OPERATOR_PATTERN = re.compile(
-    r"(?<![\w.])(-?\d+(?:\.\d+)?)\s*#\s*(-?\d+(?:\.\d+)?)(?![\w.])"
-)
 
 
 @dataclass(frozen=True)
@@ -66,9 +57,7 @@ class PerceptualEquationRangeAnalyzer:
         equation = self._index.require(equation_name)
         self._visiting.add(equation_name)
         try:
-            expression = self._normalize_expression_for_eval(
-                equation.normalized_expression
-            )
+            expression = normalize_for_eval(equation.normalized_expression)
             transformed, token_ranges = self._replace_tokens_with_names(expression)
             tree = ast.parse(transformed, mode="eval")
             result = self._eval_node(tree.body, token_ranges)
@@ -88,7 +77,7 @@ class PerceptualEquationRangeAnalyzer:
             token_ranges[token_name] = self._resolve_token_range(token_key)
             return token_name
 
-        return _EDITABLE_TOKEN_PATTERN.sub(_replace, expression), token_ranges
+        return TOKEN_PATTERN.sub(_replace, expression), token_ranges
 
     def _resolve_token_range(self, token_key: str) -> NumericRange:
         function_name = extract_function_name(token_key)
@@ -104,10 +93,6 @@ class PerceptualEquationRangeAnalyzer:
         minimum = float("-inf") if bounds.min_value is None else float(bounds.min_value)
         maximum = float("inf") if bounds.max_value is None else float(bounds.max_value)
         return NumericRange(minimum, maximum)
-
-    def _normalize_expression_for_eval(self, expression: str) -> str:
-        normalized = " ".join(expression.split())
-        return _RANDOM_OPERATOR_PATTERN.sub(r"rand(\1, \2)", normalized)
 
     def _eval_node(self, node: ast.AST, env: dict[str, NumericRange]) -> NumericRange:
         if isinstance(node, ast.Constant):

@@ -5,54 +5,18 @@ import re
 from pathlib import Path
 
 from perception.entry_text import extract_function_name
+from perception.expression_utils import (
+    ExpressionValidationError,
+    TOKEN_PATTERN,
+    normalize_for_eval,
+    validate_eval_ast,
+)
 from perception.models import PerceptualEquationIndex
 from perception.xml_utils import parse_xml_file
 
 
-_TOKEN_PATTERN = re.compile(
-    r"(?:(?:Variable[\w\.]*)|(?:Game\.[\w\.]*)|(?:Function_[\w\.]*)|(?:Script_[\w\.]*))"
-    r"(?:\s*\{[^}]*\})?"
-)
-_RANDOM_OPERATOR_PATTERN = re.compile(
-    r"(?<![\w.])(-?\d+(?:\.\d+)?)\s*#\s*(-?\d+(?:\.\d+)?)(?![\w.])"
-)
 _ALLOWED_FUNCTIONS = {"abs", "clamp", "max", "min", "rand"}
-_ALLOWED_NODES = (
-    ast.Expression,
-    ast.BinOp,
-    ast.UnaryOp,
-    ast.BoolOp,
-    ast.Compare,
-    ast.Call,
-    ast.Name,
-    ast.Load,
-    ast.Constant,
-    ast.Add,
-    ast.Sub,
-    ast.Mult,
-    ast.Div,
-    ast.Mod,
-    ast.Pow,
-    ast.FloorDiv,
-    ast.UAdd,
-    ast.USub,
-    ast.Not,
-    ast.And,
-    ast.Or,
-    ast.Eq,
-    ast.NotEq,
-    ast.Lt,
-    ast.LtE,
-    ast.Gt,
-    ast.GtE,
-)
 _PARAMETER_PATTERN = re.compile(r"\bParameter_\w+\b")
-
-
-class _AstValidationError(ValueError):
-    def __init__(self, message: str, needle: str | None = None) -> None:
-        super().__init__(message)
-        self.needle = needle
 
 
 def load_perception_token_names(layer_folders: list[tuple[str, Path]]) -> set[str]:
@@ -108,25 +72,6 @@ def load_hint_token_names(layer_folders: list[tuple[str, Path]]) -> set[str]:
     return names
 
 
-def validate_equation_index(
-    index: PerceptualEquationIndex,
-    perception_token_names: set[str] | None = None,
-    script_evaluator_names: set[str] | None = None,
-    hint_token_names: set[str] | None = None,
-    source_labels: dict[Path, str] | None = None,
-) -> None:
-    """Validate math calls and Function_* perception references in loaded equations."""
-    errors = collect_equation_validation_errors(
-        index,
-        perception_token_names,
-        script_evaluator_names,
-        hint_token_names,
-        source_labels,
-    )
-    if errors:
-        raise ValueError(errors[0])
-
-
 def collect_equation_validation_errors(
     index: PerceptualEquationIndex,
     perception_token_names: set[str] | None = None,
@@ -169,7 +114,7 @@ def _validate_equation(
     errors: list[str],
     source_label: str | None,
 ) -> None:
-    expression = _normalize_for_ast(equation.normalized_expression)
+    expression = normalize_for_eval(equation.normalized_expression)
     if expression.count("{") != expression.count("}"):
         raise _error(
             equation.source_file,
@@ -246,10 +191,10 @@ def _validate_equation(
                     )
         return "0"
 
-    expression = _TOKEN_PATTERN.sub(replace_token, expression)
+    expression = TOKEN_PATTERN.sub(replace_token, expression)
     try:
         tree = ast.parse(expression, mode="eval")
-        _validate_ast(tree)
+        validate_eval_ast(tree, _ALLOWED_FUNCTIONS)
     except SyntaxError as exc:
         raise _error(
             equation.source_file,
@@ -257,7 +202,7 @@ def _validate_equation(
             f"Invalid equation math in {equation.name}: {exc.msg}",
             source_label=source_label,
         ) from exc
-    except _AstValidationError as exc:
+    except ExpressionValidationError as exc:
         raise _error(
             equation.source_file,
             equation.raw_expression,
@@ -265,11 +210,6 @@ def _validate_equation(
             exc.needle,
             source_label,
         ) from exc
-
-
-def _normalize_for_ast(expression: str) -> str:
-    expression = " ".join(expression.split())
-    return _RANDOM_OPERATOR_PATTERN.sub(r"rand(\1, \2)", expression)
 
 
 def _data_folder_for(equations_folder: Path) -> Path:
@@ -339,23 +279,6 @@ def _validate_evaluate_suffix(
         base,
         source_label,
     )
-
-
-def _validate_ast(tree: ast.AST) -> None:
-    for node in ast.walk(tree):
-        if not isinstance(node, _ALLOWED_NODES):
-            raise _AstValidationError(
-                f"unsupported expression construct {node.__class__.__name__}"
-            )
-        if isinstance(node, ast.Call):
-            if not isinstance(node.func, ast.Name):
-                raise _AstValidationError("only direct function calls are allowed")
-            if node.func.id not in _ALLOWED_FUNCTIONS:
-                raise _AstValidationError(
-                    f"unsupported function '{node.func.id}'", node.func.id
-                )
-        if isinstance(node, ast.Name) and node.id not in _ALLOWED_FUNCTIONS:
-            raise _AstValidationError(f"unknown name '{node.id}'", node.id)
 
 
 def _error(

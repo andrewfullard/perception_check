@@ -16,9 +16,10 @@ from perception.entry_text import (
     normalize_goal_name,
     parse_structured_fields,
 )
+from perception.expression_utils import normalize_for_eval, validate_eval_ast
 from gui.view import PerceptualEquationsView
-from parsers.goals import parse_goal_functions_folder, parse_goals_folder
-from parsers.players import parse_players_folder, parse_templates_folder
+from parsers.goals import parse_goal_functions_file, parse_goals_file
+from parsers.players import parse_players_file, parse_templates_file
 from perception.equation_index import (
     PerceptualEquation,
     PerceptualEquationIndex,
@@ -30,6 +31,7 @@ from perception.stack_paths import (
     resolve_stack_layer_content_folders,
     resolve_stack_layer_folders,
 )
+from perception.xml_utils import parse_documents_folder
 
 
 def _goal_display_name(entry_name: str) -> str:
@@ -183,7 +185,9 @@ class PerceptualEquationsApp:
             require_selected_upper_layers=False,
         )
         for layer_name, goal_functions_folder in goal_function_layers:
-            documents = parse_goal_functions_folder(goal_functions_folder)
+            documents = parse_documents_folder(
+                goal_functions_folder, parse_goal_functions_file
+            )
             self._merge_goal_function_documents(layer_name, documents)
 
         goal_layers = resolve_stack_layer_content_folders(
@@ -194,7 +198,7 @@ class PerceptualEquationsApp:
             require_selected_upper_layers=False,
         )
         for layer_name, goals_folder in goal_layers:
-            documents = parse_goals_folder(goals_folder)
+            documents = parse_documents_folder(goals_folder, parse_goals_file)
             self._merge_goal_documents(layer_name, documents)
 
         player_layers = resolve_stack_layer_content_folders(
@@ -205,7 +209,7 @@ class PerceptualEquationsApp:
             require_selected_upper_layers=False,
         )
         for layer_name, players_folder in player_layers:
-            documents = parse_players_folder(players_folder)
+            documents = parse_documents_folder(players_folder, parse_players_file)
             self._merge_player_documents(layer_name, documents)
 
         template_layers = resolve_stack_layer_content_folders(
@@ -216,7 +220,7 @@ class PerceptualEquationsApp:
             require_selected_upper_layers=False,
         )
         for layer_name, templates_folder in template_layers:
-            documents = parse_templates_folder(templates_folder)
+            documents = parse_documents_folder(templates_folder, parse_templates_file)
             self._merge_template_documents(layer_name, documents)
 
     def _merge_goal_function_documents(
@@ -1174,7 +1178,7 @@ class PerceptualEquationsApp:
     def _evaluate_expression(self) -> None:
         """Compute a result from current variable inputs and displayed operators."""
         try:
-            expression = self._normalize_expression_for_eval(
+            expression = normalize_for_eval(
                 self.view.build_evaluable_expression(
                     lambda token_key, raw_value: clamp_token_value(
                         token_key,
@@ -1252,20 +1256,6 @@ class PerceptualEquationsApp:
         self.view.names_listbox.see(target_index)
         self.view.names_listbox.event_generate("<<ListboxSelect>>")
 
-    def _normalize_expression_for_eval(self, expression: str) -> str:
-        """Normalize and translate game syntax into Python-evaluable expression text."""
-        normalized = " ".join(expression.split())
-
-        # EAW uses '#' as a random-range operator (e.g. 0#1). In Python '#'
-        # starts a comment, which can lead to parse errors like "( was never closed".
-        normalized = re.sub(
-            r"(?<![\w.])(-?\d+(?:\.\d+)?)\s*#\s*(-?\d+(?:\.\d+)?)(?![\w.])",
-            r"rand(\1, \2)",
-            normalized,
-        )
-
-        return normalized
-
     def _safe_eval_expression(self, expression: str) -> float | bool:
         """Evaluate arithmetic/boolean expression using a restricted AST whitelist."""
 
@@ -1281,7 +1271,11 @@ class PerceptualEquationsApp:
         }
 
         tree = ast.parse(expression, mode="eval")
-        self._validate_ast(tree, allowed_funcs)
+        validate_eval_ast(
+            tree,
+            set(allowed_funcs),
+            message_style="sentence",
+        )
 
         result = eval(
             compile(tree, "<expression>", "eval"),
@@ -1291,50 +1285,3 @@ class PerceptualEquationsApp:
         if not isinstance(result, (int, float, bool)):
             raise ValueError("Expression did not evaluate to a numeric/boolean result")
         return result
-
-    def _validate_ast(self, tree: ast.AST, allowed_funcs: dict[str, object]) -> None:
-        """Reject unsafe or unsupported AST nodes before evaluation."""
-        allowed_node_types = (
-            ast.Expression,
-            ast.BinOp,
-            ast.UnaryOp,
-            ast.BoolOp,
-            ast.Compare,
-            ast.Call,
-            ast.Name,
-            ast.Load,
-            ast.Constant,
-            ast.Add,
-            ast.Sub,
-            ast.Mult,
-            ast.Div,
-            ast.Mod,
-            ast.Pow,
-            ast.FloorDiv,
-            ast.UAdd,
-            ast.USub,
-            ast.Not,
-            ast.And,
-            ast.Or,
-            ast.Eq,
-            ast.NotEq,
-            ast.Lt,
-            ast.LtE,
-            ast.Gt,
-            ast.GtE,
-        )
-
-        for node in ast.walk(tree):
-            if not isinstance(node, allowed_node_types):
-                raise ValueError(
-                    f"Unsupported expression construct: {node.__class__.__name__}"
-                )
-
-            if isinstance(node, ast.Call):
-                if not isinstance(node.func, ast.Name):
-                    raise ValueError("Only direct function calls are allowed")
-                if node.func.id not in allowed_funcs:
-                    raise ValueError(f"Unsupported function: {node.func.id}")
-
-            if isinstance(node, ast.Name) and node.id not in allowed_funcs:
-                raise ValueError(f"Unknown name in expression: {node.id}")

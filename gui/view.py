@@ -5,16 +5,12 @@ import tkinter as tk
 from tkinter import ttk
 from typing import Callable
 
+from perception.expression_utils import TOKEN_PATTERN
+
 
 StructuredLinkMap = dict[tuple[str, str], list[tuple[str, str | None]]]
 GraphColumns = list[tuple[str, list[tuple[str, str, str | None]]]]
 GraphEdges = list[tuple[str, str]]
-
-
-_EDITABLE_TOKEN_PATTERN = re.compile(
-    r"(?:(?:Variable[\w\.]*)|(?:Game\.[\w\.]*)|(?:Function_[\w\.]*)|(?:Script_[\w\.]*))"
-    r"(?:\s*\{[^}]*\})?"
-)
 
 
 class PerceptualEquationsView:
@@ -673,7 +669,7 @@ class PerceptualEquationsView:
         parts: list[tuple[str, str]] = []
         cursor = 0
 
-        for match in _EDITABLE_TOKEN_PATTERN.finditer(expression):
+        for match in TOKEN_PATTERN.finditer(expression):
             if match.start() > cursor:
                 parts.append(("operator", expression[cursor : match.start()]))
             parts.append(("editable", match.group(0)))
@@ -739,4 +735,4 @@ class PerceptualEquationsView:
                 return value_text
             return token_value_transform(token_key, value_text)
 
-        return _EDITABLE_TOKEN_PATTERN.sub(_replace, self.current_expression_template)
+        return TOKEN_PATTERN.sub(_replace, self.current_expression_template)
