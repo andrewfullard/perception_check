@@ -8,6 +8,12 @@ from perception.models import (
     PerceptualEquationIndex,
     PerceptualEquationLayer,
 )
+from perception.equation_validator import (
+    load_hint_token_names,
+    load_perception_token_names,
+    load_script_evaluator_names,
+    validate_equation_index,
+)
 from parsers.equations import parse_equations_folder_recursive
 
 
@@ -50,10 +56,18 @@ def build_index_from_folders(
     recursive: bool = False,
 ) -> PerceptualEquationIndex:
     """Build an effective index from (layer_name, folder_path) pairs."""
-    return build_index(
+    folders = [(layer_name, Path(folder)) for layer_name, folder in layer_folders]
+    index = build_index(
         parse_layer(layer_name, folder, pattern=pattern, recursive=recursive)
-        for layer_name, folder in layer_folders
+        for layer_name, folder in folders
     )
+    validate_equation_index(
+        index,
+        load_perception_token_names(folders),
+        load_script_evaluator_names(folders),
+        load_hint_token_names(folders),
+    )
+    return index
 
 
 def _validate_unique_within_layer(layer: PerceptualEquationLayer) -> None:

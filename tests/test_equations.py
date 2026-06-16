@@ -27,6 +27,38 @@ def _write_non_equations_xml(path: Path) -> None:
     )
 
 
+def _write_perception_token_enum(path: Path, names: list[str]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    lines = ['<?xml version="1.0"?>', "<EnumDefinition>"]
+    lines.extend(f"  <{name}></{name}>" for name in names)
+    lines.append("</EnumDefinition>")
+    path.write_text("\n".join(lines), encoding="utf-8")
+
+
+def _write_script_evaluator(data_dir: Path, name: str) -> None:
+    script_file = data_dir / "Scripts" / "Evaluators" / f"{name}.lua"
+    script_file.parent.mkdir(parents=True, exist_ok=True)
+    script_file.write_text("return 1\n", encoding="utf-8")
+
+
+def _write_hint_set(data_dir: Path, name: str) -> None:
+    hint_file = data_dir / "XML" / "AI" / "HintSets" / "TestHintSets.xml"
+    hint_file.parent.mkdir(parents=True, exist_ok=True)
+    hint_file.write_text(
+        "\n".join(
+            [
+                '<?xml version="1.0"?>',
+                "<HintSets>",
+                "  <Galactic_Hints>",
+                f"    <{name}>0.0</{name}>",
+                "  </Galactic_Hints>",
+                "</HintSets>",
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+
 def test_parse_file_creates_equation_objects_with_raw_and_normalized_text(
     tmp_path: Path,
 ) -> None:
@@ -142,6 +174,29 @@ def test_build_index_applies_later_layer_override_and_keeps_history(
     assert index.layer_for("OnlyTR") == "TR"
 
 
+def test_build_index_allows_function_defined_by_later_layer(
+    tmp_path: Path,
+) -> None:
+    base_dir = tmp_path / "Data"
+    fotr_dir = tmp_path / "FotR"
+    base_dir.mkdir()
+    fotr_dir.mkdir()
+
+    _write_equations_xml(
+        base_dir / "base.xml",
+        {"NeedsFotRFunction": "Function_Is_Connected_To_Player.Evaluate + 1"},
+    )
+    _write_equations_xml(
+        fotr_dir / "fotr.xml",
+        {"Is_Connected_To_Player": "1"},
+    )
+
+    index = build_index_from_folders([("Data", base_dir), ("FotR", fotr_dir)])
+
+    assert index.require("NeedsFotRFunction").normalized_expression.endswith("+ 1")
+    assert index.layer_for("Is_Connected_To_Player") == "FotR"
+
+
 def test_index_require_raises_for_missing_name(tmp_path: Path) -> None:
     base_dir = tmp_path / "Data"
     base_dir.mkdir()
@@ -151,3 +206,192 @@ def test_index_require_raises_for_missing_name(tmp_path: Path) -> None:
 
     with pytest.raises(KeyError, match="not found"):
         index.require("MissingEquation")
+
+
+def test_build_index_rejects_unsupported_math_function_with_file_and_line(
+    tmp_path: Path,
+) -> None:
+    base_dir = tmp_path / "Data"
+    base_dir.mkdir()
+    xml_file = base_dir / "base.xml"
+    _write_equations_xml(xml_file, {"BadMath": "sqrt(4)"})
+
+    with pytest.raises(ValueError) as exc_info:
+        build_index_from_folders([("Data", base_dir)])
+
+    message = str(exc_info.value)
+    assert f"{xml_file}:4:" in message
+    assert "unsupported function 'sqrt'" in message
+
+
+def test_build_index_rejects_unknown_perception_token_from_enum_schema(
+    tmp_path: Path,
+) -> None:
+    base_dir = tmp_path / "Data"
+    base_dir.mkdir()
+    xml_file = base_dir / "base.xml"
+    _write_equations_xml(xml_file, {"BadToken": "Game.DoesNotExist + 1"})
+    _write_perception_token_enum(
+        base_dir / "XML" / "Enum" / "PerceptionTokenType.xml",
+        ["Game", "Income"],
+    )
+
+    with pytest.raises(ValueError) as exc_info:
+        build_index_from_folders([("Data", base_dir)])
+
+    message = str(exc_info.value)
+    assert f"{xml_file}:4:" in message
+    assert "Unknown perception token 'DoesNotExist'" in message
+
+
+def test_build_index_reports_unknown_function_token_line_inside_entry(
+    tmp_path: Path,
+) -> None:
+    base_dir = tmp_path / "Data"
+    base_dir.mkdir()
+    xml_file = base_dir / "base.xml"
+    _write_equations_xml(
+        xml_file,
+        {
+            "MultiLine": (
+                "1 +\n"
+                "Function_Missing_Function.Evaluate"
+            )
+        },
+    )
+
+    with pytest.raises(ValueError) as exc_info:
+        build_index_from_folders([("Data", base_dir)])
+
+    message = str(exc_info.value)
+    assert f"{xml_file}:5:" in message
+    assert "Unknown perception name 'Missing_Function'" in message
+
+
+def test_build_index_accepts_script_calls_with_evaluate_without_enum_validation(
+    tmp_path: Path,
+) -> None:
+    base_dir = tmp_path / "Data"
+    base_dir.mkdir()
+    _write_equations_xml(
+        base_dir / "base.xml", {"Scripted": "Script_DoThing.Evaluate + 1"}
+    )
+    _write_perception_token_enum(
+        base_dir / "XML" / "Enum" / "PerceptionTokenType.xml",
+        ["Game", "Income"],
+    )
+    _write_script_evaluator(base_dir, "DoThing")
+
+    index = build_index_from_folders([("Data", base_dir)])
+
+    assert (
+        index.require("Scripted").normalized_expression
+        == "Script_DoThing.Evaluate + 1"
+    )
+
+
+def test_build_index_rejects_unknown_script_evaluator(
+    tmp_path: Path,
+) -> None:
+    base_dir = tmp_path / "Data"
+    base_dir.mkdir()
+    xml_file = base_dir / "base.xml"
+    _write_equations_xml(
+        xml_file, {"Scripted": "Script_MissingThing.Evaluate + 1"}
+    )
+    _write_script_evaluator(base_dir, "ExistingThing")
+
+    with pytest.raises(ValueError) as exc_info:
+        build_index_from_folders([("Data", base_dir)])
+
+    message = str(exc_info.value)
+    assert f"{xml_file}:4:" in message
+    assert "Unknown script evaluator 'MissingThing'" in message
+
+
+def test_build_index_accepts_hint_tokens_from_hint_sets(
+    tmp_path: Path,
+) -> None:
+    base_dir = tmp_path / "Data"
+    base_dir.mkdir()
+    _write_equations_xml(
+        base_dir / "base.xml",
+        {"PriorityTarget": "Variable_Target.Hints.PriorityTarget > 0"},
+    )
+    _write_perception_token_enum(
+        base_dir / "XML" / "Enum" / "PerceptionTokenType.xml",
+        ["Variable_Target", "Hints"],
+    )
+    _write_hint_set(base_dir, "PriorityTarget")
+
+    index = build_index_from_folders([("Data", base_dir)])
+
+    assert (
+        index.require("PriorityTarget").normalized_expression
+        == "Variable_Target.Hints.PriorityTarget > 0"
+    )
+
+
+def test_build_index_rejects_unknown_hint_token(
+    tmp_path: Path,
+) -> None:
+    base_dir = tmp_path / "Data"
+    base_dir.mkdir()
+    xml_file = base_dir / "base.xml"
+    _write_equations_xml(
+        xml_file,
+        {"PriorityTarget": "Variable_Target.Hints.MissingHint > 0"},
+    )
+    _write_perception_token_enum(
+        base_dir / "XML" / "Enum" / "PerceptionTokenType.xml",
+        ["Variable_Target", "Hints"],
+    )
+    _write_hint_set(base_dir, "PriorityTarget")
+
+    with pytest.raises(ValueError) as exc_info:
+        build_index_from_folders([("Data", base_dir)])
+
+    message = str(exc_info.value)
+    assert f"{xml_file}:4:" in message
+    assert "Unknown hint token 'MissingHint'" in message
+
+
+def test_build_index_rejects_function_or_script_without_evaluate(
+    tmp_path: Path,
+) -> None:
+    base_dir = tmp_path / "Data"
+    base_dir.mkdir()
+    xml_file = base_dir / "base.xml"
+    _write_equations_xml(
+        xml_file,
+        {
+            "BaseScore": "1",
+            "BadFunction": "Function_BaseScore + 1",
+        },
+    )
+
+    with pytest.raises(ValueError) as exc_info:
+        build_index_from_folders([("Data", base_dir)])
+
+    message = str(exc_info.value)
+    assert f"{xml_file}:7:" in message
+    assert "Function_BaseScore in BadFunction must end with .Evaluate" in message
+
+
+def test_build_index_rejects_unmatched_parameter_braces(
+    tmp_path: Path,
+) -> None:
+    base_dir = tmp_path / "Data"
+    base_dir.mkdir()
+    xml_file = base_dir / "base.xml"
+    _write_equations_xml(
+        xml_file,
+        {"BadParameter": 'Game.Income {Parameter_Type = "Thing" + 1'},
+    )
+
+    with pytest.raises(ValueError) as exc_info:
+        build_index_from_folders([("Data", base_dir)])
+
+    message = str(exc_info.value)
+    assert f"{xml_file}:4:" in message
+    assert "Unmatched parameter braces in BadParameter" in message
