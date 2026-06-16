@@ -773,3 +773,34 @@ def test_merge_non_equation_data_reads_players_templates_with_stack_order(
     assert app.template_to_players["Template::Basic_Empire_Default"] == [
         "Player::BasicEmpire"
     ]
+
+
+def test_load_stack_reports_validation_warnings_without_blocking(
+    tmp_path: Path,
+) -> None:
+    root = tmp_path / "mod"
+    data_eq = root / "Data" / "AI" / "PerceptualEquations"
+    data_eq.mkdir(parents=True)
+    _write_equations_xml(data_eq / "eq.xml", {"BadMath": "sqrt(4)"})
+
+    app = _app_without_tk()
+    app.view = SimpleNamespace(folder_var=_DummyVar())
+    app._merge_non_equation_data_into_index = MethodType(
+        lambda self, _root, _layers: None,
+        app,
+    )
+    app._refresh_list = MethodType(lambda self: None, app)
+
+    warnings: list[tuple[str, str]] = []
+    original_showwarning = messagebox.showwarning
+    messagebox.showwarning = lambda title, message: warnings.append((title, message))
+    try:
+        app._load_stack(root, [])
+    finally:
+        messagebox.showwarning = original_showwarning
+
+    assert app.index is not None
+    assert app.index.get("BadMath") is not None
+    assert warnings
+    assert warnings[0][0] == "Perception validation"
+    assert "unsupported function 'sqrt'" in warnings[0][1]

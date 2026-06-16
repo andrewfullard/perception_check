@@ -9,10 +9,10 @@ from perception.models import (
     PerceptualEquationLayer,
 )
 from perception.equation_validator import (
+    collect_equation_validation_errors,
     load_hint_token_names,
     load_perception_token_names,
     load_script_evaluator_names,
-    validate_equation_index,
 )
 from parsers.equations import parse_equations_folder_recursive
 
@@ -61,11 +61,12 @@ def build_index_from_folders(
         parse_layer(layer_name, folder, pattern=pattern, recursive=recursive)
         for layer_name, folder in folders
     )
-    validate_equation_index(
+    index.validation_errors = collect_equation_validation_errors(
         index,
         load_perception_token_names(folders),
         load_script_evaluator_names(folders),
         load_hint_token_names(folders),
+        _validation_source_labels(index, folders),
     )
     return index
 
@@ -91,3 +92,52 @@ def _validate_unique_within_layer(layer: PerceptualEquationLayer) -> None:
             f"Duplicate equation names found within layer '{layer.name}': "
             f"{duplicate_list}"
         )
+
+
+def _validation_source_labels(
+    index: PerceptualEquationIndex, layer_folders: list[tuple[str, Path]]
+) -> dict[Path, str]:
+    labels: dict[Path, str] = {}
+    layer_display_roots = [
+        (layer_name, _display_root_for_layer(layer_name, folder))
+        for layer_name, folder in layer_folders
+    ]
+
+    for equation in index:
+        layer_name = index.layer_for(equation.name)
+        display_path = _display_source_path(equation.source_file, layer_display_roots)
+        labels[equation.source_file] = (
+            f"{layer_name}: {display_path}" if layer_name else display_path
+        )
+    return labels
+
+
+def _display_root_for_layer(layer_name: str, equations_folder: Path) -> Path:
+    data_folder = _data_folder_for(equations_folder)
+    if layer_name == "Data":
+        mod_root = data_folder.parent
+    else:
+        mod_root = data_folder.parent.parent
+    return mod_root.parent
+
+
+def _data_folder_for(equations_folder: Path) -> Path:
+    folder = equations_folder
+    if folder.name == "PerceptualEquations":
+        folder = folder.parent
+    if folder.name == "AI":
+        folder = folder.parent
+    if folder.name == "XML":
+        folder = folder.parent
+    return folder
+
+
+def _display_source_path(
+    source_file: Path, layer_display_roots: list[tuple[str, Path]]
+) -> str:
+    for _layer_name, display_root in layer_display_roots:
+        try:
+            return source_file.relative_to(display_root).as_posix()
+        except ValueError:
+            continue
+    return source_file.name

@@ -98,6 +98,7 @@ class PerceptualEquationIndex:
     all_definitions: dict[str, list[tuple[str, PerceptualEquation]]] = field(
         default_factory=dict
     )
+    validation_errors: list[str] = field(default_factory=list)
 
     def get(self, equation_name: str) -> PerceptualEquation | None:
         return self.effective_equations.get(equation_name)

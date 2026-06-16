@@ -161,6 +161,12 @@ class PerceptualEquationsApp:
         loaded_layers = " -> ".join(layer_name for layer_name, _ in layer_folders)
         self.view.folder_var.set(f"{root} [{loaded_layers}]")
         self._refresh_list()
+        if self.index.validation_errors:
+            shown_errors = "\n".join(self.index.validation_errors[:20])
+            remaining_count = len(self.index.validation_errors) - 20
+            if remaining_count > 0:
+                shown_errors += f"\n... and {remaining_count} more"
+            messagebox.showwarning("Perception validation", shown_errors)
 
     def _merge_non_equation_data_into_index(
         self, root: Path, upper_layers: list[str]

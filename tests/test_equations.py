@@ -59,6 +59,10 @@ def _write_hint_set(data_dir: Path, name: str) -> None:
     )
 
 
+def _validation_source(xml_file: Path, layer_name: str = "Data") -> str:
+    return f"{layer_name}: {xml_file.relative_to(xml_file.parents[2]).as_posix()}"
+
+
 def test_parse_file_creates_equation_objects_with_raw_and_normalized_text(
     tmp_path: Path,
 ) -> None:
@@ -208,7 +212,7 @@ def test_index_require_raises_for_missing_name(tmp_path: Path) -> None:
         index.require("MissingEquation")
 
 
-def test_build_index_rejects_unsupported_math_function_with_file_and_line(
+def test_build_index_reports_unsupported_math_function_with_file_and_line(
     tmp_path: Path,
 ) -> None:
     base_dir = tmp_path / "Data"
@@ -216,15 +220,14 @@ def test_build_index_rejects_unsupported_math_function_with_file_and_line(
     xml_file = base_dir / "base.xml"
     _write_equations_xml(xml_file, {"BadMath": "sqrt(4)"})
 
-    with pytest.raises(ValueError) as exc_info:
-        build_index_from_folders([("Data", base_dir)])
+    index = build_index_from_folders([("Data", base_dir)])
 
-    message = str(exc_info.value)
-    assert f"{xml_file}:4:" in message
+    message = index.validation_errors[0]
+    assert f"{_validation_source(xml_file)}:4:" in message
     assert "unsupported function 'sqrt'" in message
 
 
-def test_build_index_rejects_unknown_perception_token_from_enum_schema(
+def test_build_index_reports_unknown_perception_token_from_enum_schema(
     tmp_path: Path,
 ) -> None:
     base_dir = tmp_path / "Data"
@@ -236,12 +239,38 @@ def test_build_index_rejects_unknown_perception_token_from_enum_schema(
         ["Game", "Income"],
     )
 
-    with pytest.raises(ValueError) as exc_info:
-        build_index_from_folders([("Data", base_dir)])
+    index = build_index_from_folders([("Data", base_dir)])
 
-    message = str(exc_info.value)
-    assert f"{xml_file}:4:" in message
+    message = index.validation_errors[0]
+    assert f"{_validation_source(xml_file)}:4:" in message
     assert "Unknown perception token 'DoesNotExist'" in message
+
+
+def test_build_index_treats_perception_tokens_as_case_insensitive_style_notes(
+    tmp_path: Path,
+) -> None:
+    base_dir = tmp_path / "Data"
+    base_dir.mkdir()
+    xml_file = base_dir / "base.xml"
+    _write_equations_xml(
+        xml_file,
+        {"BadStyle": "Variable_Target.GroundBaseLevelUnnormalized + 1"},
+    )
+    _write_perception_token_enum(
+        base_dir / "XML" / "Enum" / "PerceptionTokenType.xml",
+        ["Variable_Target", "GroundbaseLevelUnnormalized"],
+    )
+
+    index = build_index_from_folders([("Data", base_dir)])
+
+    assert index.get("BadStyle") is not None
+    assert len(index.validation_errors) == 1
+    message = index.validation_errors[0]
+    assert f"{_validation_source(xml_file)}:4:" in message
+    assert "Style note" in message
+    assert "GroundBaseLevelUnnormalized" in message
+    assert "GroundbaseLevelUnnormalized" in message
+    assert "Unknown perception token" not in message
 
 
 def test_build_index_reports_unknown_function_token_line_inside_entry(
@@ -260,11 +289,10 @@ def test_build_index_reports_unknown_function_token_line_inside_entry(
         },
     )
 
-    with pytest.raises(ValueError) as exc_info:
-        build_index_from_folders([("Data", base_dir)])
+    index = build_index_from_folders([("Data", base_dir)])
 
-    message = str(exc_info.value)
-    assert f"{xml_file}:5:" in message
+    message = index.validation_errors[0]
+    assert f"{_validation_source(xml_file)}:5:" in message
     assert "Unknown perception name 'Missing_Function'" in message
 
 
@@ -290,7 +318,7 @@ def test_build_index_accepts_script_calls_with_evaluate_without_enum_validation(
     )
 
 
-def test_build_index_rejects_unknown_script_evaluator(
+def test_build_index_reports_unknown_script_evaluator(
     tmp_path: Path,
 ) -> None:
     base_dir = tmp_path / "Data"
@@ -301,11 +329,10 @@ def test_build_index_rejects_unknown_script_evaluator(
     )
     _write_script_evaluator(base_dir, "ExistingThing")
 
-    with pytest.raises(ValueError) as exc_info:
-        build_index_from_folders([("Data", base_dir)])
+    index = build_index_from_folders([("Data", base_dir)])
 
-    message = str(exc_info.value)
-    assert f"{xml_file}:4:" in message
+    message = index.validation_errors[0]
+    assert f"{_validation_source(xml_file)}:4:" in message
     assert "Unknown script evaluator 'MissingThing'" in message
 
 
@@ -332,7 +359,7 @@ def test_build_index_accepts_hint_tokens_from_hint_sets(
     )
 
 
-def test_build_index_rejects_unknown_hint_token(
+def test_build_index_reports_unknown_hint_token(
     tmp_path: Path,
 ) -> None:
     base_dir = tmp_path / "Data"
@@ -348,15 +375,14 @@ def test_build_index_rejects_unknown_hint_token(
     )
     _write_hint_set(base_dir, "PriorityTarget")
 
-    with pytest.raises(ValueError) as exc_info:
-        build_index_from_folders([("Data", base_dir)])
+    index = build_index_from_folders([("Data", base_dir)])
 
-    message = str(exc_info.value)
-    assert f"{xml_file}:4:" in message
+    message = index.validation_errors[0]
+    assert f"{_validation_source(xml_file)}:4:" in message
     assert "Unknown hint token 'MissingHint'" in message
 
 
-def test_build_index_rejects_function_or_script_without_evaluate(
+def test_build_index_reports_function_or_script_without_evaluate(
     tmp_path: Path,
 ) -> None:
     base_dir = tmp_path / "Data"
@@ -370,15 +396,14 @@ def test_build_index_rejects_function_or_script_without_evaluate(
         },
     )
 
-    with pytest.raises(ValueError) as exc_info:
-        build_index_from_folders([("Data", base_dir)])
+    index = build_index_from_folders([("Data", base_dir)])
 
-    message = str(exc_info.value)
-    assert f"{xml_file}:7:" in message
+    message = index.validation_errors[0]
+    assert f"{_validation_source(xml_file)}:7:" in message
     assert "Function_BaseScore in BadFunction must end with .Evaluate" in message
 
 
-def test_build_index_rejects_unmatched_parameter_braces(
+def test_build_index_reports_unmatched_parameter_braces(
     tmp_path: Path,
 ) -> None:
     base_dir = tmp_path / "Data"
@@ -389,9 +414,8 @@ def test_build_index_rejects_unmatched_parameter_braces(
         {"BadParameter": 'Game.Income {Parameter_Type = "Thing" + 1'},
     )
 
-    with pytest.raises(ValueError) as exc_info:
-        build_index_from_folders([("Data", base_dir)])
+    index = build_index_from_folders([("Data", base_dir)])
 
-    message = str(exc_info.value)
-    assert f"{xml_file}:4:" in message
+    message = index.validation_errors[0]
+    assert f"{_validation_source(xml_file)}:4:" in message
     assert "Unmatched parameter braces in BadParameter" in message

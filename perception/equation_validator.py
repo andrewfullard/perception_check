@@ -113,86 +113,158 @@ def validate_equation_index(
     perception_token_names: set[str] | None = None,
     script_evaluator_names: set[str] | None = None,
     hint_token_names: set[str] | None = None,
+    source_labels: dict[Path, str] | None = None,
 ) -> None:
     """Validate math calls and Function_* perception references in loaded equations."""
+    errors = collect_equation_validation_errors(
+        index,
+        perception_token_names,
+        script_evaluator_names,
+        hint_token_names,
+        source_labels,
+    )
+    if errors:
+        raise ValueError(errors[0])
+
+
+def collect_equation_validation_errors(
+    index: PerceptualEquationIndex,
+    perception_token_names: set[str] | None = None,
+    script_evaluator_names: set[str] | None = None,
+    hint_token_names: set[str] | None = None,
+    source_labels: dict[Path, str] | None = None,
+) -> list[str]:
+    """Return validation errors without blocking equation loading."""
     valid_names = set(index.effective_equations)
     perception_token_names = perception_token_names or set()
+    perception_token_case = {
+        token_name.lower(): token_name for token_name in perception_token_names
+    }
     script_evaluator_names = script_evaluator_names or set()
     hint_token_names = hint_token_names or set()
+    source_labels = source_labels or {}
+    errors: list[str] = []
     for equation in index:
-        expression = _normalize_for_ast(equation.normalized_expression)
-        if expression.count("{") != expression.count("}"):
-            raise _error(
-                equation.source_file,
-                equation.raw_expression,
-                f"Unmatched parameter braces in {equation.name}",
-            )
-
-        def replace_token(match: re.Match[str]) -> str:
-            token = " ".join(match.group(0).split())
-            _validate_evaluate_suffix(
-                equation.source_file, equation.raw_expression, equation.name, token
-            )
-            script_name = _script_name(token)
-            if (
-                script_name
-                and script_evaluator_names
-                and script_name not in script_evaluator_names
-            ):
-                raise _error(
-                    equation.source_file,
-                    equation.raw_expression,
-                    f"Unknown script evaluator '{script_name}' in {equation.name}",
-                    token,
-                )
-            function_name = extract_function_name(token)
-            if function_name and function_name not in valid_names:
-                raise _error(
-                    equation.source_file,
-                    equation.raw_expression,
-                    f"Unknown perception name '{function_name}' in {equation.name}",
-                    token,
-                )
-            if perception_token_names:
-                hint_name = _hint_name(token)
-                if hint_name and hint_token_names and hint_name not in hint_token_names:
-                    raise _error(
-                        equation.source_file,
-                        equation.raw_expression,
-                        f"Unknown hint token '{hint_name}' in {equation.name}",
-                        hint_name,
-                    )
-                unknown_tokens = [
-                    name
-                    for name in _perception_token_parts(token, hint_token_names)
-                    if name not in perception_token_names
-                ]
-                if unknown_tokens:
-                    raise _error(
-                        equation.source_file,
-                        equation.raw_expression,
-                        f"Unknown perception token '{unknown_tokens[0]}' in {equation.name}",
-                        unknown_tokens[0],
-                    )
-            return "0"
-
-        expression = _TOKEN_PATTERN.sub(replace_token, expression)
         try:
-            tree = ast.parse(expression, mode="eval")
-            _validate_ast(tree)
-        except SyntaxError as exc:
+            _validate_equation(
+                equation,
+                valid_names,
+                perception_token_case,
+                script_evaluator_names,
+                hint_token_names,
+                errors,
+                source_labels.get(equation.source_file),
+            )
+        except ValueError as exc:
+            errors.append(str(exc))
+    return errors
+
+
+def _validate_equation(
+    equation,
+    valid_names: set[str],
+    perception_token_case: dict[str, str],
+    script_evaluator_names: set[str],
+    hint_token_names: set[str],
+    errors: list[str],
+    source_label: str | None,
+) -> None:
+    expression = _normalize_for_ast(equation.normalized_expression)
+    if expression.count("{") != expression.count("}"):
+        raise _error(
+            equation.source_file,
+            equation.raw_expression,
+            f"Unmatched parameter braces in {equation.name}",
+            source_label=source_label,
+        )
+
+    def replace_token(match: re.Match[str]) -> str:
+        token = " ".join(match.group(0).split())
+        _validate_evaluate_suffix(
+            equation.source_file,
+            equation.raw_expression,
+            equation.name,
+            token,
+            source_label,
+        )
+        script_name = _script_name(token)
+        if (
+            script_name
+            and script_evaluator_names
+            and script_name not in script_evaluator_names
+        ):
             raise _error(
                 equation.source_file,
                 equation.raw_expression,
-                f"Invalid equation math in {equation.name}: {exc.msg}",
-            ) from exc
-        except _AstValidationError as exc:
+                f"Unknown script evaluator '{script_name}' in {equation.name}",
+                token,
+                source_label,
+            )
+        function_name = extract_function_name(token)
+        if function_name and function_name not in valid_names:
             raise _error(
                 equation.source_file,
                 equation.raw_expression,
-                f"Invalid equation math in {equation.name}: {exc}",
-                exc.needle,
-            ) from exc
+                f"Unknown perception name '{function_name}' in {equation.name}",
+                token,
+                source_label,
+            )
+        if perception_token_case:
+            hint_name = _hint_name(token)
+            if hint_name and hint_token_names and hint_name not in hint_token_names:
+                raise _error(
+                    equation.source_file,
+                    equation.raw_expression,
+                    f"Unknown hint token '{hint_name}' in {equation.name}",
+                    hint_name,
+                    source_label,
+                )
+            for token_name in _perception_token_parts(token, hint_token_names):
+                canonical_name = perception_token_case.get(token_name.lower())
+                if canonical_name is None:
+                    raise _error(
+                        equation.source_file,
+                        equation.raw_expression,
+                        f"Unknown perception token '{token_name}' in {equation.name}",
+                        token_name,
+                        source_label,
+                    )
+                if token_name != canonical_name:
+                    errors.append(
+                        str(
+                            _error(
+                                equation.source_file,
+                                equation.raw_expression,
+                                (
+                                    f"Style note: perception token '{token_name}' "
+                                    f"in {equation.name} should be '{canonical_name}'"
+                                ),
+                                token_name,
+                                source_label,
+                            )
+                        )
+                    )
+        return "0"
+
+    expression = _TOKEN_PATTERN.sub(replace_token, expression)
+    try:
+        tree = ast.parse(expression, mode="eval")
+        _validate_ast(tree)
+    except SyntaxError as exc:
+        raise _error(
+            equation.source_file,
+            equation.raw_expression,
+            f"Invalid equation math in {equation.name}: {exc.msg}",
+            source_label=source_label,
+        ) from exc
+    except _AstValidationError as exc:
+        raise _error(
+            equation.source_file,
+            equation.raw_expression,
+            f"Invalid equation math in {equation.name}: {exc}",
+            exc.needle,
+            source_label,
+        ) from exc
 
 
 def _normalize_for_ast(expression: str) -> str:
@@ -249,7 +321,11 @@ def _script_name(token: str) -> str | None:
 
 
 def _validate_evaluate_suffix(
-    source_file: Path, raw_expression: str, equation_name: str, token: str
+    source_file: Path,
+    raw_expression: str,
+    equation_name: str,
+    token: str,
+    source_label: str | None = None,
 ) -> None:
     base = token.split("{", 1)[0].strip()
     if not (base.startswith("Function_") or base.startswith("Script_")):
@@ -261,6 +337,7 @@ def _validate_evaluate_suffix(
         raw_expression,
         f"{base.split('.', 1)[0]} in {equation_name} must end with .Evaluate",
         base,
+        source_label,
     )
 
 
@@ -286,9 +363,11 @@ def _error(
     raw_expression: str,
     message: str,
     needle: str | None = None,
+    source_label: str | None = None,
 ) -> ValueError:
+    source = source_label or str(source_file)
     return ValueError(
-        f"{source_file}:{_line_number(source_file, raw_expression, needle)}: {message}"
+        f"{source}:{_line_number(source_file, raw_expression, needle)}: {message}"
     )
 
 
