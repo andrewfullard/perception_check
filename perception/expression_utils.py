@@ -50,7 +50,70 @@ class ExpressionValidationError(ValueError):
 
 def normalize_for_eval(expression: str) -> str:
     normalized = " ".join(expression.split())
-    return RANDOM_OPERATOR_PATTERN.sub(r"rand(\1, \2)", normalized)
+    normalized = RANDOM_OPERATOR_PATTERN.sub(r"rand(\1, \2)", normalized)
+    return _normalize_parenthesized_random_ranges(normalized)
+
+
+def _normalize_parenthesized_random_ranges(expression: str) -> str:
+    """Normalize parenthesized EAW random ranges with expression operands."""
+    result: list[str] = []
+    index = 0
+    while index < len(expression):
+        if expression[index] != "(":
+            result.append(expression[index])
+            index += 1
+            continue
+
+        paren_depth = brace_depth = 0
+        hash_position: int | None = None
+        multiple_hashes = False
+        quoted = False
+        closing = None
+        cursor = index + 1
+        while cursor < len(expression):
+            character = expression[cursor]
+            if quoted:
+                quoted = character != '"' or expression[cursor - 1] == "\\"
+            elif character == '"':
+                quoted = True
+            elif character == "{":
+                brace_depth += 1
+            elif character == "}" and brace_depth:
+                brace_depth -= 1
+            elif brace_depth == 0 and character == "(":
+                paren_depth += 1
+            elif brace_depth == 0 and character == ")":
+                if paren_depth == 0:
+                    closing = cursor
+                    break
+                paren_depth -= 1
+            elif brace_depth == 0 and character == "#":
+                if hash_position is None:
+                    hash_position = cursor
+                else:
+                    multiple_hashes = True
+            cursor += 1
+
+        if closing is None:
+            result.append(expression[index:])
+            break
+
+        if hash_position is not None and not multiple_hashes:
+            left = _normalize_parenthesized_random_ranges(
+                expression[index + 1 : hash_position]
+            ).strip()
+            right = _normalize_parenthesized_random_ranges(
+                expression[hash_position + 1 : closing]
+            ).strip()
+            result.append(f"rand({left}, {right})" if left and right else expression[index : closing + 1])
+        else:
+            inner = _normalize_parenthesized_random_ranges(
+                expression[index + 1 : closing]
+            )
+            result.append(f"({inner})")
+        index = closing + 1
+
+    return "".join(result)
 
 
 def validate_eval_ast(

@@ -7,6 +7,7 @@ from parsers.equations import (
     parse_equations_folder_recursive,
 )
 from perception.equation_index import build_index_from_folders, parse_layer
+from perception.expression_utils import normalize_for_eval
 from perception.xml_utils import parse_documents_folder
 
 
@@ -199,6 +200,36 @@ def test_build_index_allows_function_defined_by_later_layer(
 
     assert index.require("NeedsFotRFunction").normalized_expression.endswith("+ 1")
     assert index.layer_for("Is_Connected_To_Player") == "FotR"
+
+
+def test_build_index_accepts_random_ranges_with_expression_operands(
+    tmp_path: Path,
+) -> None:
+    base_dir = tmp_path / "Data"
+    base_dir.mkdir()
+    cases = [
+        ("IonCannons", "Ion_Cannon", "4.0"),
+        ("LightFactories", "Light_Factory", "3.0"),
+        ("HeavyFactories", "Heavy_Factory", "2.0"),
+    ]
+    _write_equations_xml(
+        base_dir / "intervention.xml",
+        {
+            name: (
+                f'(1 # clamp((Variable_Self.PlanetsControlledUnnormalized - '
+                f'Variable_Self.StructureCount {{Parameter_Type = "{parameter}"}}), '
+                f"1.0, {maximum}))"
+            )
+            for name, parameter, maximum in cases
+        },
+    )
+
+    index = build_index_from_folders([("Data", base_dir)])
+
+    assert index.validation_errors == []
+    assert normalize_for_eval("(1 # clamp(2, 1.0, 4.0))") == (
+        "rand(1, clamp(2, 1.0, 4.0))"
+    )
 
 
 def test_index_require_raises_for_missing_name(tmp_path: Path) -> None:
